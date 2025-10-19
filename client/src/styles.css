@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --autumn-50: #fff7ed;
+  --autumn-100: #ffedd5;
+  --autumn-200: #fed7aa;
+  --autumn-300: #fdba74;
+  --autumn-400: #fb923c;
+  --autumn-500: #f97316;
+  --autumn-600: #ea580c;
+  --autumn-700: #c2410c;
+  --autumn-800: #9a3412;
+  --autumn-900: #7c2d12;
+}
+
+body {
+  @apply bg-autumn-50 text-stone-900;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center px-4 py-2 rounded-md bg-autumn-600 text-white hover:bg-autumn-700 disabled:opacity-50;
+}
+.btn-outline {
+  @apply inline-flex items-center justify-center px-4 py-2 rounded-md border border-autumn-600 text-autumn-700 hover:bg-autumn-100;
+}
+.card {
+  @apply bg-white shadow rounded-lg border border-autumn-100;
+}
+.input {
+  @apply w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-autumn-400;
+}
