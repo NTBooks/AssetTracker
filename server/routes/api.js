@@ -55,7 +55,8 @@ export default function registerApiRoutes(app) {
             let certUpload, nextUpload;
             try {
                 certUpload = await uploadPublicSvg(`certificate-${sku}-${serial}.svg`, certSvg);
-                nextUpload = await uploadPublicSvg(`next-secret-${sku}-${serial}.svg`, nextSvg);
+                // Next Secret Phrase must be PRIVATE
+                nextUpload = await uploadPrivateSvg(`next-secret-${sku}-${serial}.svg`, nextSvg, 'REW Files (private)');
             } catch (e) {
                 const statusCode = e?.response?.status || 502;
                 const msg = e?.response?.data?.message || e?.message || 'Chainletter error';
@@ -71,7 +72,7 @@ export default function registerApiRoutes(app) {
             await db.run('INSERT INTO serial_numbers (sku, serial, item_name, item_description, photo_url, public_cid) VALUES (?, ?, ?, ?, ?, ?)', [sku, serial, itemName ?? null, itemDescription ?? null, photoCid ?? null, certUpload.cid ?? null]);
             const serialRow = await db.get('SELECT id FROM serial_numbers WHERE sku=? AND serial=?', [sku, serial]);
             const { hash, salt } = await hashSecret(secret);
-            const result = await db.run('INSERT INTO unlocks (serial_id, secret_hash, salt) VALUES (?, ?, ?)', [serialRow.id, hash, salt]);
+            const result = await db.run('INSERT INTO unlocks (serial_id, secret_hash, salt, private_cid) VALUES (?, ?, ?, ?)', [serialRow.id, hash, salt, nextUpload.cid ?? null]);
             const unlockId = result.lastID;
 
             return ok(res, 'Item created', {
@@ -177,7 +178,11 @@ export default function registerApiRoutes(app) {
             const serialRow = await db.get('SELECT * FROM serial_numbers WHERE sku=? AND serial=?', [sku, serial]);
             if (!serialRow) return ok(res, 'No record', { serial: null, registrations: [] });
             const regs = await db.all('SELECT id, owner_name, created_at, contested, public_file_url FROM registrations WHERE serial_id=? ORDER BY id ASC', [serialRow.id]);
-            const serialOut = serialRow ? { ...serialRow, photo_url: serialRow.photo_url ? resolveIpfsCidToHttp(serialRow.photo_url) : null } : null;
+            const serialOut = serialRow ? {
+                ...serialRow,
+                photo_url: serialRow.photo_url ? resolveIpfsCidToHttp(serialRow.photo_url) : null,
+                public_url: serialRow.public_cid ? resolveIpfsCidToHttp(serialRow.public_cid) : null
+            } : null;
             return ok(res, 'Found', { serial: serialOut, registrations: regs });
         } catch (e) {
             return bad(res, e.message);

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { contestRegistration, verifyQuery } from "../lib/api";
 import { extractSkuSerialFromSvg } from "../util/svgMeta";
+import { resolveIpfsCidToHttp } from "../lib/ipfs";
 
 export default function Verify() {
   const location = useLocation();
@@ -47,6 +48,23 @@ export default function Verify() {
 
   return (
     <div className="space-y-4">
+      {data?.serial?.public_cid && (
+        <div className="card p-4">
+          <h3 className="font-semibold mb-2">Original Certificate</h3>
+          <a
+            cid={data.serial.public_cid}
+            className="inline-block"
+            href={resolveIpfsCidToHttp(data.serial.public_cid) || "#"}
+            target="_blank"
+            rel="noopener noreferrer">
+            <img
+              src={resolveIpfsCidToHttp(data.serial.public_cid) || ""}
+              alt="Original certificate"
+              className="max-h-64 rounded border"
+            />
+          </a>
+        </div>
+      )}
       <div className="card p-4 flex gap-2 items-end">
         <div>
           <label className="block text-sm mb-1">SKU</label>
@@ -105,7 +123,11 @@ export default function Verify() {
                     : "no contests"}
                 </div>
               </div>
-              <a className="btn-outline" href="/register">
+              <a
+                className="btn-outline"
+                href={`/register?sku=${encodeURIComponent(
+                  sku
+                )}&serial=${encodeURIComponent(serial)}`}>
                 Register Asset
               </a>
             </div>

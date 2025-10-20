@@ -1,4 +1,6 @@
-const DEFAULT_GATEWAY = "https://gateway.pinata.cloud/ipfs/:cid";
+const DEFAULT_GATEWAY =
+  (import.meta.env.VITE_IPFS_GATEWAY as string) ??
+  "https://gateway.pinata.cloud/ipfs/:cid";
 
 export function resolveIpfsCidToHttp(cid: string): string | null {
   if (!cid) return null;

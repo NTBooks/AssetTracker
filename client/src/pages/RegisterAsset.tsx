@@ -1,14 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { createCheckout, registerAsset } from "../lib/api";
 import { addRecentItem } from "../lib/recent";
 import { TESTMODE } from "../lib/env";
 
 export default function RegisterAsset() {
+  const location = useLocation();
   const [sku, setSku] = useState("");
   const [serial, setSerial] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [unlockSecret, setUnlockSecret] = useState("");
   const [result, setResult] = useState<any>(null);
+  // Prefill from query params if present
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const s = params.get("sku") || "";
+    const sn = params.get("serial") || "";
+    if (s) setSku(s);
+    if (sn) setSerial(sn);
+  }, [location.search]);
   const [error, setError] = useState<string | null>(null);
 
   const onRegister = async () => {
