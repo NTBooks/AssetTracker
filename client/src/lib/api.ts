@@ -66,8 +66,13 @@ export async function verifyQuery(sku: string, serial: string) {
 
 export async function contestRegistration(
   registrationId: number,
-  secret: string
+  secret: string,
+  reason: string
 ) {
-  const { data } = await axios.post("/api/contest", { registrationId, secret });
+  const { data } = await axios.post("/api/contest", {
+    registrationId,
+    secret,
+    reason,
+  });
   return data.data;
 }

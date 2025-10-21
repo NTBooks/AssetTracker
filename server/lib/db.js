@@ -53,6 +53,7 @@ export async function initDb() {
       private_file_url TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       contested INTEGER DEFAULT 0,
+      contest_reason TEXT,
       unlock_id INTEGER,
       FOREIGN KEY (serial_id) REFERENCES serial_numbers(id) ON DELETE CASCADE,
       FOREIGN KEY (unlock_id) REFERENCES unlocks(id) ON DELETE SET NULL
@@ -62,6 +63,7 @@ export async function initDb() {
   // Backfill schema columns if database was created before these fields existed
   try { await dbInstance.exec(`ALTER TABLE serial_numbers ADD COLUMN public_cid TEXT`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE unlocks ADD COLUMN private_cid TEXT`); } catch { }
+  try { await dbInstance.exec(`ALTER TABLE registrations ADD COLUMN contest_reason TEXT`); } catch { }
 
   return dbInstance;
 }

@@ -5,7 +5,7 @@ import { uploadPublicSvg, uploadPrivateSvg, uploadArbitraryFile } from '../lib/c
 import { extractCid, resolveIpfsCidToHttp } from '../lib/ipfs.js';
 import multer from 'multer';
 import { createCheckoutSession } from '../lib/stripe.js';
-import { nanoid } from 'nanoid';
+import { customAlphabet } from 'nanoid';
 import { Readable } from 'stream';
 
 const ok = (res, message, data) => res.status(200).json({ status: 'ok', message, data });
@@ -22,7 +22,8 @@ export default function registerApiRoutes(app) {
     });
     // Generate pseudo-random serial number for default SKU
     app.post('/api/generate-serial', async (req, res) => {
-        const serial = `CL-${nanoid(10).toUpperCase()}`;
+        const rand = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 10);
+        const serial = `CL${rand()}`;
         return ok(res, 'Generated', { sku: 'CL1000', serial });
     });
 
@@ -195,6 +196,7 @@ export default function registerApiRoutes(app) {
             const sanitize = (v) => typeof v === 'string' ? v.slice(0, 2000) : v;
             const registrationId = Number(req.body?.registrationId);
             const secret = sanitize(req.body?.secret);
+            const reason = sanitize(req.body?.reason || 'other');
             if (!registrationId || !secret) return bad(res, 'Missing fields');
             const db = await getDb();
             const reg = await db.get('SELECT id, unlock_id FROM registrations WHERE id=?', [registrationId]);
@@ -203,7 +205,7 @@ export default function registerApiRoutes(app) {
             if (!unlock) return bad(res, 'Unlock not found', 404);
             const okKey = await verifySecret(secret, unlock.secret_hash);
             if (!okKey) return bad(res, 'Invalid key', 403);
-            await db.run('UPDATE registrations SET contested=1 WHERE id=?', [registrationId]);
+            await db.run('UPDATE registrations SET contested=1, contest_reason=? WHERE id=?', [reason, registrationId]);
             return ok(res, 'Contested');
         } catch (e) {
             return bad(res, e.message);
@@ -254,6 +256,61 @@ export default function registerApiRoutes(app) {
             res.write(`event: error\n`);
             res.write(`data: ${JSON.stringify({ message: e?.message || 'SSE proxy failure' })}\n\n`);
             res.end();
+        }
+    });
+
+    // Audit log: dump all serial numbers, public registrations, and contests as a JSON file
+    app.get('/api/audit', async (req, res) => {
+        try {
+            const db = await getDb();
+            const serials = await db.all(`
+                SELECT id, sku, serial, item_name, item_description, photo_url, public_cid, created_at
+                FROM serial_numbers ORDER BY id ASC
+            `);
+            const registrations = await db.all(`
+                SELECT r.id, r.serial_id, s.sku, s.serial, r.owner_name, r.public_file_url, r.private_file_url, r.created_at, r.contested, r.contest_reason
+                FROM registrations r
+                JOIN serial_numbers s ON s.id = r.serial_id
+                ORDER BY r.id ASC
+            `);
+            const contests = registrations.filter(r => Number(r.contested) === 1);
+
+            const payload = {
+                generatedAt: new Date().toISOString(),
+                totals: {
+                    serials: serials.length,
+                    registrations: registrations.length,
+                    contests: contests.length
+                },
+                serial_numbers: serials,
+                public_registrations: registrations.map(r => ({
+                    id: r.id,
+                    serial_id: r.serial_id,
+                    sku: r.sku,
+                    serial: r.serial,
+                    owner_name: r.owner_name,
+                    public_file_url: r.public_file_url,
+                    created_at: r.created_at,
+                    contested: r.contested,
+                    contest_reason: r.contest_reason || null
+                })),
+                contests: contests.map(c => ({
+                    id: c.id,
+                    serial_id: c.serial_id,
+                    sku: c.sku,
+                    serial: c.serial,
+                    owner_name: c.owner_name,
+                    created_at: c.created_at,
+                    contest_reason: c.contest_reason || null
+                }))
+            };
+
+            const filename = `audit-${Date.now()}.json`;
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.status(200).send(JSON.stringify(payload, null, 2));
+        } catch (e) {
+            return bad(res, e.message);
         }
     });
 }

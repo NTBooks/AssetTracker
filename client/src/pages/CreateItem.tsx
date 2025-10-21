@@ -14,6 +14,18 @@ export default function CreateItem() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Bulk create range state
+  const [rangeStart, setRangeStart] = useState<string>("");
+  const [rangeEnd, setRangeEnd] = useState<string>("");
+  const [rangeDecimals, setRangeDecimals] = useState<string>("4");
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [bulkDone, setBulkDone] = useState(0);
+  const [bulkTotal, setBulkTotal] = useState(0);
+  const [bulkSuccess, setBulkSuccess] = useState(0);
+  const [bulkFailed, setBulkFailed] = useState(0);
+  const [bulkErrors, setBulkErrors] = useState<
+    Array<{ serial: string; message: string }>
+  >([]);
 
   const onGenerate = async () => {
     const g = await generateSerial();
@@ -105,6 +117,63 @@ export default function CreateItem() {
   useState(() => {
     onFinalizeIfPaid();
   });
+
+  const onBulkCreate = async () => {
+    const startNum = parseInt(rangeStart || "");
+    const endNum = parseInt(rangeEnd || "");
+    const pad = Math.max(0, parseInt(rangeDecimals || "0") || 0);
+    if (
+      !sku ||
+      Number.isNaN(startNum) ||
+      Number.isNaN(endNum) ||
+      startNum > endNum
+    )
+      return;
+    const total = endNum - startNum + 1;
+    setBulkRunning(true);
+    setBulkDone(0);
+    setBulkTotal(total);
+    setBulkSuccess(0);
+    setBulkFailed(0);
+    setBulkErrors([]);
+    try {
+      const successUrl = window.location.origin + "/create?status=paid";
+      const cancelUrl = window.location.href;
+      const checkout = await createCheckout(
+        `Bulk item creation x${total}`,
+        successUrl,
+        cancelUrl
+      );
+      if (checkout.id !== "free_mode") {
+        alert("Bulk creation requires FREEMODE enabled.");
+        return;
+      }
+      for (let n = startNum; n <= endNum; n++) {
+        const serialNum = String(n).padStart(pad, "0");
+        try {
+          await createItem({
+            sku,
+            serial: serialNum,
+            itemName,
+            itemDescription,
+            photoUrl: ipfsPhotoUri || photoUrl,
+          });
+          setBulkSuccess((s) => s + 1);
+        } catch (e: any) {
+          const msg =
+            e?.response?.data?.message || e?.message || "Create failed";
+          setBulkFailed((f) => f + 1);
+          setBulkErrors((arr) =>
+            [{ serial: serialNum, message: String(msg) }, ...arr].slice(0, 50)
+          );
+        } finally {
+          setBulkDone((d) => d + 1);
+        }
+      }
+    } finally {
+      setBulkRunning(false);
+    }
+  };
 
   return (
     <div className="grid md:grid-cols-2 gap-6">
@@ -231,6 +300,89 @@ export default function CreateItem() {
           </div>
         ) : (
           <p className="text-stone-600">No item created yet.</p>
+        )}
+      </div>
+
+      {/* Bulk Create Panel */}
+      <div className="md:col-span-2 card p-6">
+        <h2 className="text-xl font-semibold mb-4">Bulk Create Range</h2>
+        <p className="text-sm text-stone-600 mb-3">
+          Create many items with the same details. Serial numbers will be
+          numeric and padded with left zeros.
+        </p>
+        <div className="grid md:grid-cols-3 gap-3 mb-3">
+          <div>
+            <label className="block text-sm mb-1">SKU</label>
+            <input
+              className="input"
+              value={sku}
+              onChange={(e) => setSku(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm mb-1">Start</label>
+            <input
+              className="input"
+              type="number"
+              value={rangeStart}
+              onChange={(e) => setRangeStart(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm mb-1">End</label>
+            <input
+              className="input"
+              type="number"
+              value={rangeEnd}
+              onChange={(e) => setRangeEnd(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="grid md:grid-cols-3 gap-3 mb-3">
+          <div className="md:col-span-1">
+            <label className="block text-sm mb-1">Decimals (pad)</label>
+            <input
+              className="input"
+              type="number"
+              min={0}
+              value={rangeDecimals}
+              onChange={(e) => setRangeDecimals(e.target.value)}
+            />
+          </div>
+          <div className="md:col-span-2 flex items-end">
+            <button
+              className="btn"
+              type="button"
+              onClick={onBulkCreate}
+              disabled={bulkRunning || !sku || !rangeStart || !rangeEnd}>
+              Start Bulk Create
+            </button>
+          </div>
+        </div>
+        {bulkTotal > 0 && (
+          <div className="mt-3">
+            <div className="h-3 w-full bg-autumn-100 rounded">
+              <div
+                className="h-3 bg-autumn-600 rounded"
+                style={{
+                  width: `${Math.round((bulkDone / bulkTotal) * 100)}%`,
+                }}
+              />
+            </div>
+            <div className="text-sm text-stone-600 mt-2">
+              {bulkDone}/{bulkTotal} • Success {bulkSuccess} • Failed{" "}
+              {bulkFailed}
+            </div>
+            {bulkErrors.length > 0 && (
+              <div className="mt-2 text-xs text-red-700 max-h-40 overflow-auto border border-red-200 rounded p-2 bg-red-50">
+                {bulkErrors.map((e, i) => (
+                  <div key={i}>
+                    Serial {e.serial}: {e.message}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

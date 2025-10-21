@@ -37,7 +37,9 @@ export default function Verify() {
   const onContest = async (registrationId: number) => {
     const secret = window.prompt("Enter unlock secret for this registration");
     if (!secret) return;
-    await contestRegistration(registrationId, secret);
+    const reason =
+      window.prompt("Reason (lost, stolen, fraud, other)", "other") || "other";
+    await contestRegistration(registrationId, secret, reason);
     await onSearch();
   };
 

@@ -34,6 +34,7 @@ export async function uploadPublicSvg(filename, svgString, groupName = 'RWA File
             'secret-key': secret,
             'group-id': groupName,
             'network': 'public',
+            'stamp-immediately': 'true',
             ...(cookie ? { 'Cookie': cookie } : {})
         }
     });
@@ -54,6 +55,7 @@ export async function uploadPrivateSvg(filename, svgString, groupName = 'RWA Fil
             'secret-key': secret,
             'group-id': groupName,
             'network': 'private',
+            'stamp-immediately': 'true',
             ...(cookie ? { 'Cookie': cookie } : {})
         }
     });
@@ -79,6 +81,7 @@ export async function uploadArbitraryFile({ buffer, filename, contentType, visib
             'secret-key': secret,
             'group-id': groupName,
             'network': visibility,
+            'stamp-immediately': 'true',
             ...(cookie ? { 'Cookie': cookie } : {})
         }
     });
