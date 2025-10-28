@@ -8,9 +8,11 @@ import {
 } from "../lib/recent";
 import { resolveIpfsCidToHttp } from "../lib/ipfs";
 import { initClVerify } from "../lib/clverify";
+import { useAuth } from "../lib/auth";
 
 export default function Layout() {
   const { pathname } = useLocation();
+  const auth = useAuth();
   const NavLink = ({ to, children }: { to: string; children: any }) => (
     <Link
       className={`px-3 py-2 rounded-md ${
@@ -31,10 +33,11 @@ export default function Layout() {
           <Link to="/" className="font-bold text-autumn-700">
             Asset Tracker
           </Link>
-          <nav className="flex gap-2">
+          <nav className="flex gap-2 items-center">
             <NavLink to="/create">Create Item</NavLink>
             <NavLink to="/register">Register Asset</NavLink>
             <NavLink to="/verify">Verify</NavLink>
+            <AdminAuthButton />
           </nav>
         </div>
       </header>
@@ -120,6 +123,33 @@ function ClvBootstrap() {
     initClVerify(document.body);
   }, []);
   return null;
+}
+
+function AdminAuthButton() {
+  const { loading, authenticated, userEmail, login, logout } = useAuth();
+  if (loading) {
+    return (
+      <button className="btn-outline opacity-70 cursor-wait" disabled>
+        Checking…
+      </button>
+    );
+  }
+  return authenticated ? (
+    <div className="flex items-center gap-2">
+      {userEmail ? (
+        <span className="text-sm text-stone-600 hidden sm:inline">
+          {userEmail}
+        </span>
+      ) : null}
+      <button className="btn-outline" onClick={logout}>
+        Logout
+      </button>
+    </div>
+  ) : (
+    <button className="btn" onClick={login}>
+      Admin Login
+    </button>
+  );
 }
 
 type EventLine = {

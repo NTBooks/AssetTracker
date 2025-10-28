@@ -7,7 +7,13 @@ export default defineConfig({
     port: 5173,
     host: true,
     allowedHosts: ["assets.chaincart.io"],
-    proxy: { "/api": "http://localhost:5174" },
+    proxy: {
+      "/api": "http://localhost:5174",
+      "/login": "http://localhost:5174",
+      "/logout": "http://localhost:5174",
+      "/checklogin": "http://localhost:5174",
+      "/callback": "http://localhost:5174",
+    },
   },
   build: { outDir: "dist", emptyOutDir: true },
 });

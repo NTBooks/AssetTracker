@@ -7,6 +7,7 @@ import multer from 'multer';
 import { createCheckoutSession } from '../lib/stripe.js';
 import { customAlphabet } from 'nanoid';
 import { Readable } from 'stream';
+import { requireAdmin } from '../lib/workos.js';
 
 const ok = (res, message, data) => res.status(200).json({ status: 'ok', message, data });
 const bad = (res, message, code = 400) => res.status(code).json({ status: 'error', message });
@@ -38,8 +39,8 @@ export default function registerApiRoutes(app) {
         }
     });
 
-    // Create new item (after payment success)
-    app.post('/api/items', async (req, res) => {
+    // Create new item (admin-only)
+    app.post('/api/items', requireAdmin, async (req, res) => {
         try {
             const sanitize = (v) => typeof v === 'string' ? v.slice(0, 2000) : v;
             const sku = sanitize(req.body?.sku);

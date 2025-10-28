@@ -1,5 +1,8 @@
 import axios from "axios";
 
+// Ensure cookies are sent for proxied same-origin routes (login/checklogin/logout)
+axios.defaults.withCredentials = true;
+
 export async function generateSerial() {
   const { data } = await axios.post("/api/generate-serial");
   return data.data as { sku: string; serial: string };
@@ -75,4 +78,15 @@ export async function contestRegistration(
     reason,
   });
   return data.data;
+}
+
+export async function checkLogin() {
+  const { data } = await axios.get("/checklogin");
+  return data as {
+    status: "success" | "error";
+    message: string;
+    authenticated: boolean;
+    isAdmin?: boolean;
+    user?: { email: string } | null;
+  };
 }

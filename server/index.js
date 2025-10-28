@@ -7,6 +7,8 @@ import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import { initDb } from './lib/db.js';
 import registerApiRoutes from './routes/api.js';
+import cookieParser from 'cookie-parser';
+import { registerWorkosRoutes } from './lib/workos.js';
 
 dotenv.config();
 
@@ -18,15 +20,22 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Initialize database
 await initDb();
+
+
+
 
 // Static for uploaded assets (local fallback when Chainletter not configured)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // API routes
 registerApiRoutes(app);
+
+// Auth routes (WorkOS)
+registerWorkosRoutes(app);
 
 // Serve Vite build (client/dist) in production only
 const clientDist = path.join(__dirname, '..', 'client', 'dist');

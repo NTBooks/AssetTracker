@@ -7,6 +7,7 @@ import Home from "./pages/Home";
 import CreateItem from "./pages/CreateItem";
 import RegisterAsset from "./pages/RegisterAsset";
 import Verify from "./pages/Verify";
+import { AuthProvider } from "./lib/auth";
 
 const router = createBrowserRouter([
   {
@@ -23,6 +24,8 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
   </React.StrictMode>
 );
