@@ -16,18 +16,33 @@
 }
 
 body {
-  @apply bg-autumn-50 text-stone-900;
+  /* Soft autumn gradient background for a modern feel */
+  @apply text-stone-900;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 237, 213, 0.8) 0%,
+    rgba(253, 186, 116, 0.55) 35%,
+    rgba(250, 250, 249, 0.6) 100%
+  );
 }
 
 .btn {
-  @apply inline-flex items-center justify-center px-4 py-2 rounded-md bg-autumn-600 text-white hover:bg-autumn-700 disabled:opacity-50;
+  @apply inline-flex items-center justify-center px-4 py-2 rounded-lg bg-autumn-600 text-white hover:bg-autumn-700 disabled:opacity-50 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-autumn-400 focus:ring-opacity-50;
 }
 .btn-outline {
-  @apply inline-flex items-center justify-center px-4 py-2 rounded-md border border-autumn-600 text-autumn-700 hover:bg-autumn-100;
+  @apply inline-flex items-center justify-center px-4 py-2 rounded-lg border border-autumn-500 text-autumn-700 hover:bg-autumn-100 transition-colors focus:outline-none focus:ring-2 focus:ring-autumn-300 focus:ring-opacity-50;
 }
 .card {
-  @apply bg-white shadow rounded-lg border border-autumn-100;
+  @apply bg-white/90 backdrop-blur shadow-md rounded-xl border border-autumn-100;
 }
 .input {
-  @apply w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-autumn-400;
+  @apply w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-autumn-400 bg-white/90;
+}
+
+/* Modern section helpers */
+.section-title {
+  @apply text-lg font-semibold text-autumn-800 tracking-wide;
+}
+.muted {
+  @apply text-stone-600;
 }

@@ -21,7 +21,7 @@ function tryRenderTemplate(templateName, data) {
     if (!fs.existsSync(templatePath)) return null;
     let svg = fs.readFileSync(templatePath, 'utf8');
     for (const [k, v] of Object.entries(data || {})) {
-      const token = new RegExp(`##${k}##`, 'g');
+      const token = new RegExp(`##${k}##`, 'gi');
       svg = svg.replace(token, escapeXml(v));
     }
     return svg;
@@ -55,7 +55,9 @@ export function generatePublicCertificateSvg({ sku, serial, itemName, itemDescri
     SKU: sku,
     SERIAL: serial,
     ITEM_NAME: itemName ?? '',
-    ITEM_DESC: itemDescription ?? ''
+    ITEM_DESC: itemDescription ?? '',
+    ITEM_DESCRIPTION: itemDescription ?? '',
+    DESCRIPTION: itemDescription ?? ''
   });
   if (rendered) return rendered;
   const inner = `

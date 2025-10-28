@@ -15,10 +15,10 @@ export default function Layout() {
   const auth = useAuth();
   const NavLink = ({ to, children }: { to: string; children: any }) => (
     <Link
-      className={`px-3 py-2 rounded-md ${
+      className={`px-3 py-2 rounded-full transition-colors ${
         pathname === to
-          ? "bg-autumn-200 text-autumn-900"
-          : "hover:bg-autumn-100"
+          ? "bg-autumn-600 text-white shadow"
+          : "text-autumn-800 hover:bg-autumn-100"
       }`}
       to={to}>
       {children}
@@ -30,9 +30,9 @@ export default function Layout() {
       <ClvBootstrap />
       {/* Global event toasts overlay */}
       <EventToasts />
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-autumn-100">
-        <div className="max-w-6xl mx-auto flex items-center justify-between p-4">
-          <Link to="/" className="font-bold text-autumn-700">
+      <header className="sticky top-0 z-10 bg-white/70 backdrop-blur border-b border-autumn-100/70">
+        <div className="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
+          <Link to="/" className="font-bold text-autumn-700 text-xl">
             Asset Tracker
           </Link>
           <nav className="flex gap-2 items-center">
@@ -45,17 +45,17 @@ export default function Layout() {
           </nav>
         </div>
       </header>
-      <div className="max-w-6xl mx-auto p-4 grid md:grid-cols-12 gap-4">
-        <aside className="md:col-span-4 lg:col-span-3 order-2 md:order-1">
+      <div className="max-w-6xl mx-auto p-4 grid md:grid-cols-12 gap-6">
+        <aside className="md:col-span-4 lg:col-span-3 order-2 md:order-1 space-y-4">
           <RecentSidebar />
           <EventsPanel />
         </aside>
-        <main className="md:col-span-8 lg:col-span-9 order-1 md:order-2">
+        <main className="md:col-span-8 lg:col-span-9 order-1 md:order-2 space-y-4">
           <Outlet />
         </main>
       </div>
-      <footer className="mt-16 py-8 text-center text-sm text-stone-500">
-        Built with an autumn Tailwind theme
+      <footer className="mt-16 py-8 text-center text-sm text-stone-600">
+        Built with an autumn theme
       </footer>
     </div>
   );

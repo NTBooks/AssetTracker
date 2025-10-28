@@ -125,7 +125,7 @@ export default function registerApiRoutes(app) {
             // Prepare Chainletter artifacts first so we only write DB on success
             const secret = await generateSecret();
             const certSvg = generatePublicCertificateSvg({ sku, serial, itemName, itemDescription });
-            const nextSvg = generateNextSecretSvg({ sku, serial, nextSecret: secret });
+            const saleSvg = generatePrivateSaleSvg({ sku, serial, ownerName: '', nextSecret: secret });
             // Per-network stamp control: default true for single creates; bulk sets last item per network
             const body = req.body || {};
             const stampNowLegacy = typeof body.stampNow !== 'undefined' ? Boolean(body.stampNow) : undefined;
@@ -135,18 +135,18 @@ export default function registerApiRoutes(app) {
             const stampNowPrivate = typeof body.stampNowPrivate !== 'undefined'
                 ? Boolean(body.stampNowPrivate)
                 : (typeof stampNowLegacy !== 'undefined' ? stampNowLegacy : true);
-            let certUpload, nextUpload;
+            let certUpload, saleUpload;
             try {
                 // Public certificate (stamp when last public file in series)
                 certUpload = await uploadPublicSvg(`certificate-${sku}-${serial}.svg`, certSvg, 'RWA Files (public)', { stampImmediately: stampNowPublic });
-                // Private next-secret (stamp when last private file in series)
-                nextUpload = await uploadPrivateSvg(`next-secret-${sku}-${serial}.svg`, nextSvg, 'RWA Files (private)', { stampImmediately: stampNowPrivate });
+                // Private sale document with next secret (stamp when last private file in series)
+                saleUpload = await uploadPrivateSvg(`sale-${sku}-${serial}.svg`, saleSvg, 'RWA Files (private)', { stampImmediately: stampNowPrivate });
             } catch (e) {
                 const statusCode = e?.response?.status || 502;
                 const msg = e?.response?.data?.message || e?.message || 'Chainletter error';
                 return res.status(statusCode).json({ status: 'error', message: `Chainletter upload failed: ${msg}` });
             }
-            if (!certUpload?.url || !nextUpload?.cid) {
+            if (!certUpload?.url || !saleUpload?.cid) {
                 return bad(res, 'Chainletter upload failed or not configured', 503);
             }
 
@@ -156,12 +156,12 @@ export default function registerApiRoutes(app) {
             await db.run('INSERT INTO serial_numbers (sku, serial, item_name, item_description, photo_url, public_cid, created_by_email) VALUES (?, ?, ?, ?, ?, ?, ?)', [sku, serial, itemName ?? null, itemDescription ?? null, photoCid ?? null, certUpload.cid ?? null, createdByEmail]);
             const serialRow = await db.get('SELECT id FROM serial_numbers WHERE sku=? AND serial=?', [sku, serial]);
             const { hash, salt } = await hashSecret(secret);
-            const result = await db.run('INSERT INTO unlocks (serial_id, secret_hash, salt, private_cid) VALUES (?, ?, ?, ?)', [serialRow.id, hash, salt, nextUpload.cid ?? null]);
+            const result = await db.run('INSERT INTO unlocks (serial_id, secret_hash, salt, private_cid) VALUES (?, ?, ?, ?)', [serialRow.id, hash, salt, saleUpload.cid ?? null]);
             const unlockId = result.lastID;
 
             // Build API-key protected URL for private next-secret SVG via proxy
             // Local proxy URL hides API credentials
-            const nextSecretUrl = nextUpload?.cid ? `/api/ipfs/${nextUpload.cid}?filename=${encodeURIComponent(`next-secret-${sku}-${serial}.svg`)}` : (nextUpload?.url || null);
+            const privateUrl = saleUpload?.cid ? `/api/ipfs/${saleUpload.cid}?filename=${encodeURIComponent(`sale-${sku}-${serial}.svg`)}` : (saleUpload?.url || null);
 
             return ok(res, 'Item created', {
                 sku,
@@ -169,7 +169,7 @@ export default function registerApiRoutes(app) {
                 unlockId,
                 initialSecret: secret,
                 certificateUrl: certUpload.url,
-                nextSecretUrl
+                privateUrl
             });
         } catch (e) {
             if (e?.message?.includes('UNIQUE')) return bad(res, 'Serial already exists');

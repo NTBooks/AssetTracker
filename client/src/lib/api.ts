@@ -37,7 +37,7 @@ export async function createItem(payload: {
     serial: string;
     initialSecret: string;
     certificateUrl?: string | null;
-    nextSecretUrl?: string | null;
+    privateUrl?: string | null;
   };
 }
 

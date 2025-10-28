@@ -282,12 +282,12 @@ export default function CreateItem() {
                 Public Certificate
               </a>
             )}
-            {result.nextSecretUrl && (
+            {result.privateUrl && (
               <a
                 className="text-autumn-700 underline"
-                href={result.nextSecretUrl}
+                href={result.privateUrl}
                 target="_blank">
-                Next Secret SVG
+                Private Sale Document
               </a>
             )}
           </div>
