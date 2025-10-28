@@ -101,3 +101,19 @@ export async function getStamps() {
   });
   return (data?.data?.credits ?? null) as number | null;
 }
+
+export async function createProof(payload: {
+  registrationId: number;
+  sku: string;
+  serial: string;
+  phrase: string;
+  secret: string;
+}) {
+  const { data } = await axios.post("/api/proof", payload);
+  return data.data as {
+    cid: string;
+    url: string | null;
+    ipfsUri: string | null;
+    text: string;
+  };
+}

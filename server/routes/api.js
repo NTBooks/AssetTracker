@@ -287,7 +287,12 @@ export default function registerApiRoutes(app) {
             const sanitize = (v) => typeof v === 'string' ? v.slice(0, 2000) : v;
             const registrationId = Number(req.body?.registrationId);
             const secret = sanitize(req.body?.secret);
-            const reason = sanitize(req.body?.reason || 'other');
+            const reasonRaw = String(sanitize(req.body?.reason || 'other')).toLowerCase();
+            const allowedReasons = new Set(['lost', 'stolen', 'fraud', 'other']);
+            if (!allowedReasons.has(reasonRaw)) {
+                return bad(res, 'Invalid reason');
+            }
+            const reason = reasonRaw;
             if (!registrationId || !secret) return bad(res, 'Missing fields');
             const db = await getDb();
             const reg = await db.get('SELECT id, unlock_id FROM registrations WHERE id=?', [registrationId]);
@@ -300,6 +305,38 @@ export default function registerApiRoutes(app) {
             return ok(res, 'Contested');
         } catch (e) {
             return bad(res, e.message);
+        }
+    });
+
+    // Create public proof text file (stamped immediately)
+    app.post('/api/proof', async (req, res) => {
+        try {
+            const sanitize = (v) => typeof v === 'string' ? v.slice(0, 5000) : v;
+            const registrationId = Number(req.body?.registrationId);
+            const sku = sanitize(req.body?.sku);
+            const serial = sanitize(req.body?.serial);
+            const phrase = sanitize(req.body?.phrase);
+            const secret = sanitize(req.body?.secret);
+            if (!registrationId || !sku || !serial || !phrase || !secret) return bad(res, 'Missing fields');
+
+            const db = await getDb();
+            const reg = await db.get('SELECT id, owner_name, unlock_id, created_at FROM registrations WHERE id=?', [registrationId]);
+            if (!reg) return bad(res, 'Registration not found', 404);
+            const unlock = await db.get('SELECT secret_hash FROM unlocks WHERE id=?', [reg.unlock_id]);
+            if (!unlock) return bad(res, 'Unlock not found', 404);
+            const okKey = await verifySecret(secret, unlock.secret_hash);
+            if (!okKey) return bad(res, 'Invalid key', 403);
+
+            const nowIso = new Date().toISOString();
+            const content = `Proof of Registration\nSKU: ${sku}\nSerial: ${serial}\nOwner: ${reg.owner_name}\nRegistration Created At: ${reg.created_at}\nProof Generated At: ${nowIso}\nPhrase: ${phrase}\n`;
+            const buffer = Buffer.from(content, 'utf8');
+            const filename = `proof-${sku}-${serial}-${Date.now()}.txt`;
+            const uploaded = await uploadArbitraryFile({ buffer, filename, contentType: 'text/plain', visibility: 'public', groupName: 'RWA Files (public)', stampImmediately: true });
+            if (!uploaded?.cid) return bad(res, 'Upload failed', 502);
+            return ok(res, 'Proof created', { cid: uploaded.cid, url: uploaded.url, ipfsUri: uploaded.ipfsUri, text: content });
+        } catch (e) {
+            const statusCode = e?.response?.status || 500;
+            return res.status(statusCode).json({ status: 'error', message: e?.message || 'Failed to create proof' });
         }
     });
 

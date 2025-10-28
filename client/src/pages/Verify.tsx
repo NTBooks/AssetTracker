@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { contestRegistration, verifyQuery } from "../lib/api";
+import {
+  contestRegistration,
+  verifyQuery,
+  createProof,
+  createCheckout,
+} from "../lib/api";
 import { extractSkuSerialFromSvg } from "../util/svgMeta";
 import {
   resolveIpfsCidToHttp,
@@ -10,6 +15,7 @@ import {
 import { ClvLink, ClvTag } from "../lib/clv";
 import { useConfig } from "../lib/config";
 import { formatLocalDateTime } from "../lib/datetime";
+import { addRecentItem } from "../lib/recent";
 
 export default function Verify() {
   const location = useLocation();
@@ -23,6 +29,22 @@ export default function Verify() {
   >(null);
   const [thumbReady, setThumbReady] = useState(false);
   const [certReady, setCertReady] = useState(false);
+  const [contestModal, setContestModal] = useState<{
+    open: boolean;
+    registrationId?: number;
+    secret: string;
+    reason: string;
+    error?: string;
+    loading: boolean;
+  }>({ open: false, secret: "", reason: "other", loading: false });
+  const [proofModal, setProofModal] = useState<{
+    open: boolean;
+    registrationId?: number;
+    secret: string;
+    phrase: string;
+    error?: string;
+    loading: boolean;
+  }>({ open: false, secret: "", phrase: "", loading: false });
 
   const onSearch = async () => {
     setLoading(true);
@@ -48,6 +70,17 @@ export default function Verify() {
         .then(setData)
         .catch(() => {})
         .finally(() => setLoading(false));
+    }
+    // Finalize proof after checkout redirect
+    const proof = params.get("proof");
+    const reg = Number(params.get("reg"));
+    if (params.get("status") === "paid" && proof === "1" && reg) {
+      finalizeProof(reg);
+      params.delete("status");
+      params.delete("proof");
+      params.delete("reg");
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState({}, "", newUrl);
     }
   }, [location.search, singleSku]);
 
@@ -92,12 +125,79 @@ export default function Verify() {
   }, [data?.serial?.public_cid]);
 
   const onContest = async (registrationId: number) => {
-    const secret = window.prompt("Enter unlock secret for this registration");
-    if (!secret) return;
-    const reason =
-      window.prompt("Reason (lost, stolen, fraud, other)", "other") || "other";
-    await contestRegistration(registrationId, secret, reason);
-    await onSearch();
+    setContestModal({
+      open: true,
+      registrationId,
+      secret: "",
+      reason: "other",
+      loading: false,
+      error: undefined,
+    });
+  };
+
+  const onCreateProof = async (registrationId: number) => {
+    setProofModal({
+      open: true,
+      registrationId,
+      secret: "",
+      phrase: "",
+      loading: false,
+      error: undefined,
+    });
+  };
+
+  const finalizeProof = async (registrationId: number) => {
+    try {
+      const stored = sessionStorage.getItem(`proof.${registrationId}`);
+      let secret = "";
+      let phrase = "";
+      if (stored) {
+        const obj = JSON.parse(stored);
+        secret = obj?.secret || "";
+        phrase = obj?.phrase || "";
+      }
+      if (!secret) {
+        const s = window.prompt("Re-enter unlock secret");
+        if (!s) return;
+        secret = s;
+      }
+      if (!phrase) {
+        const p = window.prompt("Re-enter proof phrase", "");
+        phrase = p || "";
+      }
+      const resp = await createProof({
+        registrationId,
+        sku: singleSku || sku,
+        serial,
+        phrase,
+        secret,
+      });
+      try {
+        sessionStorage.removeItem(`proof.${registrationId}`);
+      } catch {}
+      try {
+        addRecentItem({
+          sku: singleSku || sku,
+          serial,
+          kind: "proof",
+          proofCid: resp.cid,
+        });
+      } catch {}
+      // download text file named with CID
+      const blob = new Blob([resp.text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${resp.cid}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      // open proof page with clverify tag
+      window.open(`/proof?cid=${encodeURIComponent(resp.cid)}`, "_blank");
+    } catch (e) {
+      // ignore
+    }
   };
 
   const chainCount = data?.registrations?.length ?? 0;
@@ -330,11 +430,18 @@ export default function Verify() {
                         <span className="ml-2 text-red-600">Contested</span>
                       ) : null}
                     </div>
-                    <button
-                      className="btn-outline"
-                      onClick={() => onContest(r.id)}>
-                      Contest
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="btn-outline"
+                        onClick={() => onContest(r.id)}>
+                        Contest
+                      </button>
+                      <button
+                        className="btn"
+                        onClick={() => onCreateProof(r.id)}>
+                        Create proof
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -342,6 +449,162 @@ export default function Verify() {
           </div>
         )
       )}
+      {/* Contest Modal */}
+      {contestModal.open ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
+            <h3 className="text-lg font-semibold mb-2">Contest Registration</h3>
+            {contestModal.error ? (
+              <div className="mb-3 text-red-700">{contestModal.error}</div>
+            ) : null}
+            <label className="block text-sm mb-1">Unlock Secret</label>
+            <input
+              className="input mb-3"
+              value={contestModal.secret}
+              onChange={(e) =>
+                setContestModal((m) => ({ ...m, secret: e.target.value }))
+              }
+            />
+            <label className="block text-sm mb-1">Reason</label>
+            <select
+              className="input mb-4"
+              value={contestModal.reason}
+              onChange={(e) =>
+                setContestModal((m) => ({ ...m, reason: e.target.value }))
+              }>
+              <option value="lost">lost</option>
+              <option value="stolen">stolen</option>
+              <option value="fraud">fraud</option>
+              <option value="other">other</option>
+            </select>
+            <div className="flex justify-end gap-2">
+              <button
+                className="btn-outline"
+                onClick={() => setContestModal((m) => ({ ...m, open: false }))}>
+                Cancel
+              </button>
+              <button
+                className="btn"
+                disabled={!contestModal.secret || contestModal.loading}
+                onClick={async () => {
+                  if (!contestModal.registrationId) return;
+                  setContestModal((m) => ({
+                    ...m,
+                    loading: true,
+                    error: undefined,
+                  }));
+                  try {
+                    await contestRegistration(
+                      contestModal.registrationId,
+                      contestModal.secret,
+                      contestModal.reason || "other"
+                    );
+                    setContestModal({
+                      open: false,
+                      secret: "",
+                      reason: "other",
+                      loading: false,
+                    });
+                    await onSearch();
+                  } catch (e: any) {
+                    const msg = e?.response?.data?.message || "Contest failed";
+                    setContestModal((m) => ({
+                      ...m,
+                      loading: false,
+                      error: String(msg),
+                    }));
+                  }
+                }}>
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Create Proof Modal */}
+      {proofModal.open ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
+            <h3 className="text-lg font-semibold mb-2">Create Proof</h3>
+            {proofModal.error ? (
+              <div className="mb-3 text-red-700">{proofModal.error}</div>
+            ) : null}
+            <label className="block text-sm mb-1">Unlock Secret</label>
+            <input
+              className="input mb-3"
+              value={proofModal.secret}
+              onChange={(e) =>
+                setProofModal((m) => ({ ...m, secret: e.target.value }))
+              }
+            />
+            <label className="block text-sm mb-1">Proof Phrase</label>
+            <input
+              className="input mb-4"
+              value={proofModal.phrase}
+              onChange={(e) =>
+                setProofModal((m) => ({ ...m, phrase: e.target.value }))
+              }
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                className="btn-outline"
+                onClick={() => setProofModal((m) => ({ ...m, open: false }))}>
+                Cancel
+              </button>
+              <button
+                className="btn"
+                disabled={!proofModal.secret || proofModal.loading}
+                onClick={async () => {
+                  if (!proofModal.registrationId) return;
+                  setProofModal((m) => ({
+                    ...m,
+                    loading: true,
+                    error: undefined,
+                  }));
+                  try {
+                    sessionStorage.setItem(
+                      `proof.${proofModal.registrationId}`,
+                      JSON.stringify({
+                        secret: proofModal.secret,
+                        phrase: proofModal.phrase,
+                      })
+                    );
+                    const successUrl = `${
+                      window.location.origin
+                    }/verify?sku=${encodeURIComponent(
+                      singleSku || sku
+                    )}&serial=${encodeURIComponent(
+                      serial
+                    )}&status=paid&proof=1&reg=${proofModal.registrationId}`;
+                    const cancelUrl = window.location.href;
+                    const checkout = await createCheckout(
+                      `Proof for ${singleSku || sku}/${serial}`,
+                      successUrl,
+                      cancelUrl
+                    );
+                    if (checkout.id !== "free_mode") {
+                      setProofModal((m) => ({ ...m, open: false }));
+                      window.location.href = checkout.url;
+                      return;
+                    }
+                    await finalizeProof(proofModal.registrationId);
+                    setProofModal((m) => ({ ...m, open: false }));
+                  } catch (e: any) {
+                    const msg = e?.response?.data?.message || "Proof failed";
+                    setProofModal((m) => ({
+                      ...m,
+                      loading: false,
+                      error: String(msg),
+                    }));
+                  }
+                }}>
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

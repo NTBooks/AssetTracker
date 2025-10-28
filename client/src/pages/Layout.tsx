@@ -93,16 +93,26 @@ function RecentSidebar() {
         <ul className="space-y-2">
           {items.map((it) => (
             <li
-              key={`${it.kind}-${it.sku}-${it.serial}-${it.when}`}
+              key={`${it.kind}-${it.sku}-${it.serial}-${it.when}-${
+                it.proofCid || ""
+              }`}
               className="flex items-center justify-between">
               <div>
-                <Link
-                  to={`/verify?sku=${encodeURIComponent(
-                    it.sku
-                  )}&serial=${encodeURIComponent(it.serial)}`}
-                  className="font-mono text-sm text-autumn-700 underline">
-                  {it.sku}/{it.serial}
-                </Link>
+                {it.kind === "proof" && it.proofCid ? (
+                  <Link
+                    to={`/proof?cid=${encodeURIComponent(it.proofCid)}`}
+                    className="font-mono text-sm text-autumn-700 underline">
+                    Proof • {it.sku}/{it.serial}
+                  </Link>
+                ) : (
+                  <Link
+                    to={`/verify?sku=${encodeURIComponent(
+                      it.sku
+                    )}&serial=${encodeURIComponent(it.serial)}`}
+                    className="font-mono text-sm text-autumn-700 underline">
+                    {it.sku}/{it.serial}
+                  </Link>
+                )}
                 <div className="text-xs text-stone-500">
                   {it.kind} • {new Date(it.when).toLocaleString()}
                 </div>

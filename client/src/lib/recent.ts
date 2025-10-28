@@ -4,7 +4,8 @@ export type RecentItem = {
   itemName?: string;
   when: number; // epoch ms
   secret?: string; // initial or next secret if available
-  kind: "created" | "registered";
+  proofCid?: string; // CID for generated proof
+  kind: "created" | "registered" | "proof";
 };
 
 const KEY = "assetTracker.recentItems.v1";

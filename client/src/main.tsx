@@ -9,6 +9,7 @@ import RegisterAsset from "./pages/RegisterAsset";
 import Verify from "./pages/Verify";
 import { AuthProvider } from "./lib/auth";
 import { ConfigProvider } from "./lib/config";
+import Proof from "./pages/Proof";
 
 const router = createBrowserRouter([
   {
@@ -19,6 +20,7 @@ const router = createBrowserRouter([
       { path: "create", element: <CreateItem /> },
       { path: "register", element: <RegisterAsset /> },
       { path: "verify", element: <Verify /> },
+      { path: "proof", element: <Proof /> },
     ],
   },
 ]);
