@@ -27,6 +27,9 @@ export async function createItem(payload: {
   itemName?: string;
   itemDescription?: string;
   photoUrl?: string;
+  stampNow?: boolean; // legacy: applies to both
+  stampNowPublic?: boolean;
+  stampNowPrivate?: boolean;
 }) {
   const { data } = await axios.post("/api/items", payload);
   return data.data as {
@@ -89,4 +92,11 @@ export async function checkLogin() {
     isAdmin?: boolean;
     user?: { email: string } | null;
   };
+}
+
+export async function getStamps() {
+  const { data } = await axios.get("/api/stamps", {
+    params: { network: "all" },
+  });
+  return (data?.data?.credits ?? null) as number | null;
 }

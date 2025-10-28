@@ -1,7 +1,8 @@
 import { getDb } from '../lib/db.js';
+import axios from 'axios';
 import { generateSecret, hashSecret, verifySecret } from '../lib/crypto.js';
 import { generatePublicCertificateSvg, generatePrivateSaleSvg, generateNextSecretSvg } from '../lib/svg.js';
-import { uploadPublicSvg, uploadPrivateSvg, uploadArbitraryFile } from '../lib/chainletter.js';
+import { uploadPublicSvg, uploadPrivateSvg, uploadArbitraryFile, getWebhookCredits } from '../lib/chainletter.js';
 import { extractCid, resolveIpfsCidToHttp } from '../lib/ipfs.js';
 import multer from 'multer';
 import { createCheckoutSession } from '../lib/stripe.js';
@@ -13,6 +14,74 @@ const ok = (res, message, data) => res.status(200).json({ status: 'ok', message,
 const bad = (res, message, code = 400) => res.status(code).json({ status: 'error', message });
 
 export default function registerApiRoutes(app) {
+    // Proxy IPFS file via webhook with server-side secret
+    app.get('/api/ipfs/:cid', async (req, res) => {
+        try {
+            const cid = String(req.params.cid || '');
+            if (!/Qm[1-9A-Za-z]{44}/.test(cid)) {
+                return res.status(404).send('Not Found');
+            }
+            const base = ((process.env.CHAINLETTER_BASE || 'https://dev-pinproxy.chaincart.io').trim()).replace(/\/+$/, '');
+            const apiKey = process.env.CHAINLETTER_API_KEY;
+            const secret = process.env.CHAINLETTER_SECRET_KEY;
+            const cookie = process.env.CHAINLETTER_COOKIE;
+            if (!apiKey || !secret) {
+                return res.status(503).send('Webhook not configured');
+            }
+            const url = `${base}/ipfs/${encodeURIComponent(apiKey)}/${cid}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`;
+            const upstream = await axios.get(url, {
+                headers: {
+                    'secret-key': secret,
+                    ...(cookie ? { 'Cookie': cookie } : {}),
+                },
+                responseType: 'stream',
+                timeout: 45000,
+                validateStatus: () => true,
+            });
+            if (upstream.status >= 400) {
+                return res.status(upstream.status).send(upstream.statusText || 'Error');
+            }
+            // Content headers: prefer explicit filename query for correct name/type
+            const filename = typeof req.query.filename === 'string' ? req.query.filename : undefined;
+            let ct = upstream.headers['content-type'];
+            let cd = upstream.headers['content-disposition'];
+            if (filename) {
+                const safeName = filename.replace(/"/g, '');
+                cd = `inline; filename="${safeName}"`;
+                const lower = safeName.toLowerCase();
+                if (lower.endsWith('.svg')) ct = 'image/svg+xml';
+                else if (lower.endsWith('.png')) ct = 'image/png';
+                else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) ct = 'image/jpeg';
+                else if (!ct) ct = 'application/octet-stream';
+            } else {
+                if (!ct) ct = 'application/octet-stream';
+                if (!cd) cd = `inline; filename="${cid}.bin"`;
+            }
+            res.setHeader('Content-Type', ct);
+            res.setHeader('Content-Disposition', cd);
+            upstream.data.pipe(res);
+        } catch (e) {
+            if (!res.headersSent) res.status(500).send('Internal Server Error');
+        }
+    });
+    // Stamps remaining for tenant (uses tenant-level unless group specified via query)
+    app.get('/api/stamps', async (req, res) => {
+        try {
+            const groupName = req.query?.group || undefined;
+            const network = req.query?.network || 'public';
+            const { credits } = await getWebhookCredits({ groupName, network });
+            return ok(res, 'Stamps', { credits });
+        } catch (e) {
+            return bad(res, e.message);
+        }
+    });
+    // Public config for client
+    app.get('/api/config', (req, res) => {
+        return ok(res, 'Config', {
+            singleSku: process.env.SINGLE_SKU || null,
+        });
+    });
+
     const upload = multer({
         limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
         fileFilter: (req, file, cb) => {
@@ -21,11 +90,12 @@ export default function registerApiRoutes(app) {
             return cb(new Error('Only PNG or JPEG images are allowed'));
         }
     });
-    // Generate pseudo-random serial number for default SKU
-    app.post('/api/generate-serial', async (req, res) => {
+    // Generate pseudo-random serial number for default SKU (admin-only)
+    app.post('/api/generate-serial', requireAdmin, async (req, res) => {
         const rand = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 10);
         const serial = `CL${rand()}`;
-        return ok(res, 'Generated', { sku: 'CL1000', serial });
+        const sku = (process.env.SINGLE_SKU || 'CL1000');
+        return ok(res, 'Generated', { sku, serial });
     });
 
     // Create checkout session (FREEMODE supported)
@@ -43,39 +113,55 @@ export default function registerApiRoutes(app) {
     app.post('/api/items', requireAdmin, async (req, res) => {
         try {
             const sanitize = (v) => typeof v === 'string' ? v.slice(0, 2000) : v;
-            const sku = sanitize(req.body?.sku);
+            const forcedSku = (process.env.SINGLE_SKU || '').trim();
+            const sku = forcedSku || sanitize(req.body?.sku);
             const serial = sanitize(req.body?.serial);
             const itemName = sanitize(req.body?.itemName);
             const itemDescription = sanitize(req.body?.itemDescription);
             const photoUrl = sanitize(req.body?.photoUrl);
             if (!sku || !serial) return bad(res, 'Missing sku or serial');
+            const createdByEmail = String(req.user?.email || '').slice(0, 320) || null;
 
             // Prepare Chainletter artifacts first so we only write DB on success
             const secret = await generateSecret();
             const certSvg = generatePublicCertificateSvg({ sku, serial, itemName, itemDescription });
             const nextSvg = generateNextSecretSvg({ sku, serial, nextSecret: secret });
+            // Per-network stamp control: default true for single creates; bulk sets last item per network
+            const body = req.body || {};
+            const stampNowLegacy = typeof body.stampNow !== 'undefined' ? Boolean(body.stampNow) : undefined;
+            const stampNowPublic = typeof body.stampNowPublic !== 'undefined'
+                ? Boolean(body.stampNowPublic)
+                : (typeof stampNowLegacy !== 'undefined' ? stampNowLegacy : true);
+            const stampNowPrivate = typeof body.stampNowPrivate !== 'undefined'
+                ? Boolean(body.stampNowPrivate)
+                : (typeof stampNowLegacy !== 'undefined' ? stampNowLegacy : true);
             let certUpload, nextUpload;
             try {
-                certUpload = await uploadPublicSvg(`certificate-${sku}-${serial}.svg`, certSvg);
-                // Next Secret Phrase must be PRIVATE
-                nextUpload = await uploadPrivateSvg(`next-secret-${sku}-${serial}.svg`, nextSvg, 'REW Files (private)');
+                // Public certificate (stamp when last public file in series)
+                certUpload = await uploadPublicSvg(`certificate-${sku}-${serial}.svg`, certSvg, 'RWA Files (public)', { stampImmediately: stampNowPublic });
+                // Private next-secret (stamp when last private file in series)
+                nextUpload = await uploadPrivateSvg(`next-secret-${sku}-${serial}.svg`, nextSvg, 'RWA Files (private)', { stampImmediately: stampNowPrivate });
             } catch (e) {
                 const statusCode = e?.response?.status || 502;
                 const msg = e?.response?.data?.message || e?.message || 'Chainletter error';
                 return res.status(statusCode).json({ status: 'error', message: `Chainletter upload failed: ${msg}` });
             }
-            if (!certUpload?.url || !nextUpload?.url) {
+            if (!certUpload?.url || !nextUpload?.cid) {
                 return bad(res, 'Chainletter upload failed or not configured', 503);
             }
 
             // Now persist to DB (store only CID for image if an IPFS URI or gateway URL was provided)
             const db = await getDb();
             const photoCid = extractCid(photoUrl);
-            await db.run('INSERT INTO serial_numbers (sku, serial, item_name, item_description, photo_url, public_cid) VALUES (?, ?, ?, ?, ?, ?)', [sku, serial, itemName ?? null, itemDescription ?? null, photoCid ?? null, certUpload.cid ?? null]);
+            await db.run('INSERT INTO serial_numbers (sku, serial, item_name, item_description, photo_url, public_cid, created_by_email) VALUES (?, ?, ?, ?, ?, ?, ?)', [sku, serial, itemName ?? null, itemDescription ?? null, photoCid ?? null, certUpload.cid ?? null, createdByEmail]);
             const serialRow = await db.get('SELECT id FROM serial_numbers WHERE sku=? AND serial=?', [sku, serial]);
             const { hash, salt } = await hashSecret(secret);
             const result = await db.run('INSERT INTO unlocks (serial_id, secret_hash, salt, private_cid) VALUES (?, ?, ?, ?)', [serialRow.id, hash, salt, nextUpload.cid ?? null]);
             const unlockId = result.lastID;
+
+            // Build API-key protected URL for private next-secret SVG via proxy
+            // Local proxy URL hides API credentials
+            const nextSecretUrl = nextUpload?.cid ? `/api/ipfs/${nextUpload.cid}?filename=${encodeURIComponent(`next-secret-${sku}-${serial}.svg`)}` : (nextUpload?.url || null);
 
             return ok(res, 'Item created', {
                 sku,
@@ -83,7 +169,7 @@ export default function registerApiRoutes(app) {
                 unlockId,
                 initialSecret: secret,
                 certificateUrl: certUpload.url,
-                nextSecretUrl: nextUpload.url
+                nextSecretUrl
             });
         } catch (e) {
             if (e?.message?.includes('UNIQUE')) return bad(res, 'Serial already exists');
@@ -101,7 +187,7 @@ export default function registerApiRoutes(app) {
             try {
                 if (!req.file) return bad(res, 'No file uploaded');
                 const isPrivate = String(req.body?.visibility || 'public') === 'private';
-                const groupName = isPrivate ? 'REW Files (private)' : 'RWA Files (public)';
+                const groupName = isPrivate ? 'RWA Files (private)' : 'RWA Files (public)';
                 const { buffer, mimetype, originalname, size } = req.file;
                 if (!['image/png', 'image/jpeg'].includes(mimetype)) {
                     return bad(res, 'Only PNG or JPEG images are allowed');
@@ -123,7 +209,8 @@ export default function registerApiRoutes(app) {
     app.post('/api/registrations', async (req, res) => {
         try {
             const sanitize = (v) => typeof v === 'string' ? v.slice(0, 2000) : v;
-            const sku = sanitize(req.body?.sku);
+            const forcedSku = (process.env.SINGLE_SKU || '').trim();
+            const sku = forcedSku || sanitize(req.body?.sku);
             const serial = sanitize(req.body?.serial);
             const ownerName = sanitize(req.body?.ownerName);
             const unlockSecret = sanitize(req.body?.unlockSecret);
@@ -144,14 +231,16 @@ export default function registerApiRoutes(app) {
             const publicSvg = generatePublicCertificateSvg({ sku, serial, itemName: serialRow.item_name, itemDescription: serialRow.item_description });
             let saleUpload, publicUpload;
             try {
-                saleUpload = await uploadPrivateSvg(`sale-${sku}-${serial}.svg`, saleSvg);
-                publicUpload = await uploadPublicSvg(`registration-${sku}-${serial}-${Date.now()}.svg`, publicSvg);
+                // Private sale doc is the only private upload in this series → stamp now for private
+                saleUpload = await uploadPrivateSvg(`sale-${sku}-${serial}.svg`, saleSvg, 'RWA Files (private)', { stampImmediately: true });
+                // Public registration is the only/last public upload in this series → stamp now for public
+                publicUpload = await uploadPublicSvg(`registration-${sku}-${serial}-${Date.now()}.svg`, publicSvg, 'RWA Files (public)', { stampImmediately: true });
             } catch (e) {
                 const statusCode = e?.response?.status || 502;
                 const msg = e?.response?.data?.message || e?.message || 'Chainletter error';
                 return res.status(statusCode).json({ status: 'error', message: `Chainletter upload failed: ${msg}` });
             }
-            if (!saleUpload?.url || !publicUpload?.url) {
+            if (!saleUpload?.cid || !publicUpload?.url) {
                 return bad(res, 'Chainletter upload failed or not configured', 503);
             }
 
@@ -163,7 +252,7 @@ export default function registerApiRoutes(app) {
             return ok(res, 'Registered', {
                 registrationId: reg.lastID,
                 publicUrl: publicUpload.url,
-                privateUrl: saleUpload.url,
+                privateUrl: `/api/ipfs/${saleUpload.cid}?filename=${encodeURIComponent(`sale-${sku}-${serial}.svg`)}`,
                 nextSecret
             });
         } catch (e) {
@@ -174,7 +263,8 @@ export default function registerApiRoutes(app) {
     // Verify page data
     app.get('/api/verify', async (req, res) => {
         try {
-            const sku = String(req.query?.sku || '');
+            const forcedSku = (process.env.SINGLE_SKU || '').trim();
+            const sku = forcedSku || String(req.query?.sku || '');
             const serial = String(req.query?.serial || '');
             const db = await getDb();
             const serialRow = await db.get('SELECT * FROM serial_numbers WHERE sku=? AND serial=?', [sku, serial]);

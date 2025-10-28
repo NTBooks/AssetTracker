@@ -20,7 +20,7 @@ function normalizeUploadResponse(res) {
     return { url, cid, ipfsUri, raw: data };
 }
 
-export async function uploadPublicSvg(filename, svgString, groupName = 'RWA Files (public)') {
+export async function uploadPublicSvg(filename, svgString, groupName = 'RWA Files (public)', { stampImmediately = true } = {}) {
     const apiKey = process.env.CHAINLETTER_API_KEY;
     const secret = process.env.CHAINLETTER_SECRET_KEY;
     const cookie = process.env.CHAINLETTER_COOKIE;
@@ -34,14 +34,14 @@ export async function uploadPublicSvg(filename, svgString, groupName = 'RWA File
             'secret-key': secret,
             'group-id': groupName,
             'network': 'public',
-            'stamp-immediately': 'true',
+            'stamp-immediately': String(Boolean(stampImmediately)),
             ...(cookie ? { 'Cookie': cookie } : {})
         }
     });
     return normalizeUploadResponse(res);
 }
 
-export async function uploadPrivateSvg(filename, svgString, groupName = 'RWA Files (private)') {
+export async function uploadPrivateSvg(filename, svgString, groupName = 'RWA Files (private)', { stampImmediately = true } = {}) {
     const apiKey = process.env.CHAINLETTER_API_KEY;
     const secret = process.env.CHAINLETTER_SECRET_KEY;
     const cookie = process.env.CHAINLETTER_COOKIE;
@@ -55,7 +55,7 @@ export async function uploadPrivateSvg(filename, svgString, groupName = 'RWA Fil
             'secret-key': secret,
             'group-id': groupName,
             'network': 'private',
-            'stamp-immediately': 'true',
+            'stamp-immediately': String(Boolean(stampImmediately)),
             ...(cookie ? { 'Cookie': cookie } : {})
         }
     });
@@ -67,7 +67,7 @@ export async function createPublicRegistrationNote(title, description) {
     return { url: null };
 }
 
-export async function uploadArbitraryFile({ buffer, filename, contentType, visibility = 'public', groupName = 'RWA Files (public)' }) {
+export async function uploadArbitraryFile({ buffer, filename, contentType, visibility = 'public', groupName = 'RWA Files (public)', stampImmediately = true }) {
     const apiKey = process.env.CHAINLETTER_API_KEY;
     const secret = process.env.CHAINLETTER_SECRET_KEY;
     const cookie = process.env.CHAINLETTER_COOKIE;
@@ -81,11 +81,32 @@ export async function uploadArbitraryFile({ buffer, filename, contentType, visib
             'secret-key': secret,
             'group-id': groupName,
             'network': visibility,
-            'stamp-immediately': 'true',
+            'stamp-immediately': String(Boolean(stampImmediately)),
             ...(cookie ? { 'Cookie': cookie } : {})
         }
     });
     return normalizeUploadResponse(res);
+}
+
+export async function getWebhookCredits({ groupName, network = 'public' } = {}) {
+    const apiKey = process.env.CHAINLETTER_API_KEY;
+    const secret = process.env.CHAINLETTER_SECRET_KEY;
+    const cookie = process.env.CHAINLETTER_COOKIE;
+    if (!apiKey || !secret) return { credits: null };
+    const client = apiClient();
+    const res = await client.head(`/webhook/${encodeURIComponent(apiKey)}`, {
+        headers: {
+            'secret-key': secret,
+            ...(groupName ? { 'group-id': groupName } : {}),
+            'network': network,
+            ...(cookie ? { 'Cookie': cookie } : {})
+        },
+        validateStatus: () => true
+    });
+    const headers = res?.headers || {};
+    const creditsHeader = headers['x-credits'];
+    const credits = creditsHeader != null ? Number(creditsHeader) : null;
+    return { credits: Number.isFinite(credits) ? credits : null };
 }
 
 

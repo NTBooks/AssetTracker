@@ -31,6 +31,7 @@ export async function initDb() {
       item_description TEXT,
       photo_url TEXT,
       public_cid TEXT,
+      created_by_email TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (sku, serial)
     );
@@ -62,6 +63,7 @@ export async function initDb() {
 
   // Backfill schema columns if database was created before these fields existed
   try { await dbInstance.exec(`ALTER TABLE serial_numbers ADD COLUMN public_cid TEXT`); } catch { }
+  try { await dbInstance.exec(`ALTER TABLE serial_numbers ADD COLUMN created_by_email TEXT`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE unlocks ADD COLUMN private_cid TEXT`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE registrations ADD COLUMN contest_reason TEXT`); } catch { }
 

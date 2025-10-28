@@ -29,26 +29,12 @@ export function registerWorkosRoutes(app) {
             }
 
             const email = user.email.toLowerCase().trim();
-            const allowedEmails = String(process.env.ALLOWED_EMAILS || '')
-                .toLowerCase()
-                .split(',')
-                .map(e => e.trim())
-                .filter(Boolean);
             const adminEmails = String(process.env.ADMIN_EMAILS || '')
                 .toLowerCase()
                 .split(',')
                 .map(e => e.trim())
                 .filter(Boolean);
             const isAdmin = adminEmails.includes(email);
-
-            if (!allowedEmails.includes(email)) {
-                return res.json({
-                    status: "error",
-                    message: "User not authorized",
-                    authenticated: false,
-                    isAdmin
-                });
-            }
 
             return res.json({
                 status: "success",
@@ -78,7 +64,7 @@ export function registerWorkosRoutes(app) {
             provider: 'authkit',
 
             // The callback endpoint that WorkOS will redirect to after a user authenticates
-            redirectUri: `https://${req.hostname}/callback`,
+            redirectUri: `${process.env.WORK_OS_HOST}/callback`,
             clientId: process.env.WORKOS_CLIENT_ID,
         });
 
@@ -170,19 +156,13 @@ export async function requireAdmin(req, res, next) {
             return res.status(401).json({ status: 'error', message: 'Not authenticated' });
         }
         const email = user.email.toLowerCase().trim();
-        const allowedEmails = String(process.env.ALLOWED_EMAILS || '')
-            .toLowerCase()
-            .split(',')
-            .map(e => e.trim())
-            .filter(Boolean);
         const adminEmails = String(process.env.ADMIN_EMAILS || '')
             .toLowerCase()
             .split(',')
             .map(e => e.trim())
             .filter(Boolean);
-        const isAllowed = allowedEmails.includes(email);
         const isAdmin = adminEmails.includes(email);
-        if (!isAllowed || !isAdmin) {
+        if (!isAdmin) {
             return res.status(403).json({ status: 'error', message: 'User not authorized' });
         }
         req.user = { email: user.email };

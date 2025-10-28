@@ -1,18 +1,21 @@
 import { Link } from "react-router-dom";
+import { useAuth } from "../lib/auth";
 
 export default function Home() {
+  const { authenticated, isAdmin } = useAuth();
   return (
     <div className="grid md:grid-cols-3 gap-6">
-      <div className="card p-6">
-        <h2 className="text-xl font-semibold mb-2">Create Item</h2>
-        <p className="mb-4">
-          Register a new item, pay $5 (or free in FREEMODE), and receive an
-          initial secret.
-        </p>
-        <Link to="/create" className="btn">
-          Create
-        </Link>
-      </div>
+      {authenticated && isAdmin ? (
+        <div className="card p-6">
+          <h2 className="text-xl font-semibold mb-2">Create Item</h2>
+          <p className="mb-4">
+            Create a new item and receive an initial secret.
+          </p>
+          <Link to="/create" className="btn">
+            Create
+          </Link>
+        </div>
+      ) : null}
       <div className="card p-6">
         <h2 className="text-xl font-semibold mb-2">Register Asset</h2>
         <p className="mb-4">

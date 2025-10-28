@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { contestRegistration, verifyQuery } from "../lib/api";
 import { extractSkuSerialFromSvg } from "../util/svgMeta";
-import { resolveIpfsCidToHttp } from "../lib/ipfs";
+import { resolveIpfsCidToHttp, toThumbFromUrlOrCid } from "../lib/ipfs";
+import { ClvLink } from "../lib/clv";
+import { useConfig } from "../lib/config";
 
 export default function Verify() {
   const location = useLocation();
+  const { singleSku } = useConfig();
   const [sku, setSku] = useState("");
   const [serial, setSerial] = useState("");
   const [data, setData] = useState<any>(null);
@@ -14,7 +17,7 @@ export default function Verify() {
   const onSearch = async () => {
     setLoading(true);
     try {
-      setData(await verifyQuery(sku, serial));
+      setData(await verifyQuery(singleSku || sku, serial));
     } finally {
       setLoading(false);
     }
@@ -23,16 +26,16 @@ export default function Verify() {
   // Populate fields and auto-search on initial load and whenever the query changes
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const skuQ = params.get("sku") || "";
+    const skuQ = singleSku || params.get("sku") || "";
     const serialQ = params.get("serial") || "";
     if (skuQ) setSku(skuQ);
     if (serialQ) setSerial(serialQ);
     if (skuQ && serialQ) {
-      verifyQuery(skuQ, serialQ)
+      verifyQuery(singleSku || skuQ, serialQ)
         .then(setData)
         .catch(() => {});
     }
-  }, [location.search]);
+  }, [location.search, singleSku]);
 
   const onContest = async (registrationId: number) => {
     const secret = window.prompt("Enter unlock secret for this registration");
@@ -50,32 +53,70 @@ export default function Verify() {
 
   return (
     <div className="space-y-4">
-      {data?.serial?.public_cid && (
-        <div className="card p-4">
-          <h3 className="font-semibold mb-2">Original Certificate</h3>
-          <a
-            cid={data.serial.public_cid}
-            className="inline-block"
-            href={resolveIpfsCidToHttp(data.serial.public_cid) || "#"}
-            target="_blank"
-            rel="noopener noreferrer">
-            <img
-              src={resolveIpfsCidToHttp(data.serial.public_cid) || ""}
-              alt="Original certificate"
-              className="max-h-64 rounded border"
-            />
-          </a>
+      {(data?.serial?.public_cid || data?.serial?.photo_url) && (
+        <div className="grid md:grid-cols-2 gap-4">
+          {data?.serial?.public_cid ? (
+            <div className="card p-4">
+              <h3 className="font-semibold mb-2">Original Certificate</h3>
+              <ClvLink
+                cid={data.serial.public_cid}
+                className="inline-block"
+                href={resolveIpfsCidToHttp(data.serial.public_cid) || "#"}
+                target="_blank"
+                rel="noopener noreferrer">
+                <img
+                  src={toThumbFromUrlOrCid(data.serial.public_cid, 300) || ""}
+                  alt="Original certificate"
+                  className="max-h-64 rounded border"
+                />
+              </ClvLink>
+            </div>
+          ) : null}
+          {data?.serial?.photo_url ? (
+            <div className="card p-4">
+              <h3 className="font-semibold mb-2">Item</h3>
+              <div className="flex gap-4 items-start">
+                <a
+                  className="inline-block"
+                  href={data.serial.photo_url}
+                  target="_blank"
+                  rel="noopener noreferrer">
+                  <img
+                    src={toThumbFromUrlOrCid(data.serial.photo_url, 300) || ""}
+                    alt="Item thumbnail"
+                    className="max-h-40 rounded border"
+                  />
+                </a>
+                <div className="flex-1 min-w-0">
+                  {data.serial.item_name ? (
+                    <div className="font-semibold mb-1 break-words">
+                      {data.serial.item_name}
+                    </div>
+                  ) : null}
+                  {data.serial.item_description ? (
+                    <div className="text-sm text-stone-700 whitespace-pre-wrap break-words">
+                      {data.serial.item_description}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-stone-500">No description</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
       <div className="card p-4 flex gap-2 items-end">
-        <div>
-          <label className="block text-sm mb-1">SKU</label>
-          <input
-            className="input"
-            value={sku}
-            onChange={(e) => setSku(e.target.value)}
-          />
-        </div>
+        {singleSku ? null : (
+          <div>
+            <label className="block text-sm mb-1">SKU</label>
+            <input
+              className="input"
+              value={sku}
+              onChange={(e) => setSku(e.target.value)}
+            />
+          </div>
+        )}
         <div>
           <label className="block text-sm mb-1">Serial</label>
           <input
@@ -100,7 +141,7 @@ export default function Verify() {
               const text = await file.text();
               const meta = extractSkuSerialFromSvg(text);
               if (meta) {
-                setSku(meta.sku);
+                setSku(singleSku || meta.sku);
                 setSerial(meta.serial);
               }
             }}
@@ -127,9 +168,9 @@ export default function Verify() {
               </div>
               <a
                 className="btn-outline"
-                href={`/register?sku=${encodeURIComponent(
-                  sku
-                )}&serial=${encodeURIComponent(serial)}`}>
+                href={`/register?${
+                  singleSku ? "" : `sku=${encodeURIComponent(sku)}&`
+                }serial=${encodeURIComponent(serial)}`}>
                 Register Asset
               </a>
             </div>

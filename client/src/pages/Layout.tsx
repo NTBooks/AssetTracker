@@ -6,7 +6,7 @@ import {
   RecentItem,
   RECENT_EVENT,
 } from "../lib/recent";
-import { resolveIpfsCidToHttp } from "../lib/ipfs";
+import { resolveIpfsCidToHttp, resolveIpfsThumb } from "../lib/ipfs";
 import { initClVerify } from "../lib/clverify";
 import { useAuth } from "../lib/auth";
 
@@ -28,13 +28,17 @@ export default function Layout() {
     <div className="min-h-screen">
       {/* Initialize CLVerify once at layout mount */}
       <ClvBootstrap />
+      {/* Global event toasts overlay */}
+      <EventToasts />
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-autumn-100">
         <div className="max-w-6xl mx-auto flex items-center justify-between p-4">
           <Link to="/" className="font-bold text-autumn-700">
             Asset Tracker
           </Link>
           <nav className="flex gap-2 items-center">
-            <NavLink to="/create">Create Item</NavLink>
+            {auth.authenticated && auth.isAdmin ? (
+              <NavLink to="/create">Create Item</NavLink>
+            ) : null}
             <NavLink to="/register">Register Asset</NavLink>
             <NavLink to="/verify">Verify</NavLink>
             <AdminAuthButton />
@@ -126,7 +130,8 @@ function ClvBootstrap() {
 }
 
 function AdminAuthButton() {
-  const { loading, authenticated, userEmail, login, logout } = useAuth();
+  const { loading, authenticated, userEmail, stampsCredits, login, logout } =
+    useAuth();
   if (loading) {
     return (
       <button className="btn-outline opacity-70 cursor-wait" disabled>
@@ -139,6 +144,9 @@ function AdminAuthButton() {
       {userEmail ? (
         <span className="text-sm text-stone-600 hidden sm:inline">
           {userEmail}
+          {typeof stampsCredits === "number"
+            ? ` (${stampsCredits} stamps)`
+            : ""}
         </span>
       ) : null}
       <button className="btn-outline" onClick={logout}>
@@ -169,7 +177,7 @@ function EventsPanel() {
       try {
         const obj = JSON.parse(ev.data);
         const cid = obj?.data?.hash || obj?.data?.cid;
-        const thumb = cid ? resolveIpfsCidToHttp(cid) : undefined;
+        const thumb = cid ? resolveIpfsThumb(cid, 300) || undefined : undefined;
         const line: EventLine = {
           id: String(obj?.id || crypto.randomUUID?.() || Date.now()),
           type: String(obj?.type || "event"),
@@ -243,6 +251,88 @@ function EventsPanel() {
           )
         )}
       </div>
+    </div>
+  );
+}
+
+function EventToasts() {
+  const [toasts, setToasts] = useState<EventLine[]>([]);
+  const timers = (globalThis as any).__toastTimers || new Map<string, any>();
+  (globalThis as any).__toastTimers = timers;
+  useEffect(() => {
+    const es = new EventSource("/api/events/stream");
+    es.onmessage = (ev) => {
+      try {
+        const obj = JSON.parse(ev.data);
+        const cid = obj?.data?.hash || obj?.data?.cid;
+        const thumb = cid ? resolveIpfsCidToHttp(cid) : undefined;
+        const line: EventLine = {
+          id: String(obj?.id || crypto.randomUUID?.() || Date.now()),
+          type: String(obj?.type || "event"),
+          time: new Date(obj?.timestamp || Date.now()).toLocaleTimeString(),
+          name: obj?.data?.name,
+          cid,
+          thumb,
+        };
+        setToasts((prev) => {
+          const next = [line, ...prev].slice(0, 6);
+          return next;
+        });
+        const t = setTimeout(() => {
+          setToasts((prev) => prev.filter((x) => x.id !== line.id));
+          timers.delete(line.id);
+        }, 6000);
+        timers.set(line.id, t);
+      } catch {
+        // ignore
+      }
+    };
+    es.onerror = () => {
+      /* keep open */
+    };
+    return () => {
+      es.close();
+      for (const t of timers.values()) clearTimeout(t);
+      timers.clear();
+    };
+  }, []);
+  if (toasts.length === 0) return null;
+  return (
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className="pointer-events-auto card p-3 shadow-lg bg-white border flex items-center gap-3 min-w-[260px]">
+          {t.thumb ? (
+            <img
+              src={t.thumb}
+              alt="thumb"
+              className="w-8 h-8 object-cover rounded border"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded bg-autumn-100" />
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium truncate">
+              {t.type} <span className="text-stone-500">{t.time}</span>
+            </div>
+            <div className="text-xs text-stone-600 truncate">
+              {t.name || t.cid || "—"}
+            </div>
+          </div>
+          <button
+            className="text-stone-400 hover:text-stone-600"
+            onClick={() => {
+              const tm = timers.get(t.id);
+              if (tm) clearTimeout(tm);
+              timers.delete(t.id);
+              setToasts((prev) => prev.filter((x) => x.id !== t.id));
+            }}
+            aria-label="Dismiss">
+            ×
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

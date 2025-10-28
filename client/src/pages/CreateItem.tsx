@@ -1,9 +1,19 @@
 import { useState } from "react";
-import { createCheckout, createItem, generateSerial } from "../lib/api";
+import { createItem, generateSerial } from "../lib/api";
 import { addRecentItem } from "../lib/recent";
 import { TESTMODE } from "../lib/env";
+import { useAuth } from "../lib/auth";
+import { useConfig } from "../lib/config";
 
 export default function CreateItem() {
+  const {
+    loading: authLoading,
+    authenticated,
+    isAdmin,
+    login,
+    refresh,
+  } = useAuth();
+  const { singleSku } = useConfig();
   const [sku, setSku] = useState("");
   const [serial, setSerial] = useState("");
   const [itemName, setItemName] = useState("");
@@ -29,7 +39,7 @@ export default function CreateItem() {
 
   const onGenerate = async () => {
     const g = await generateSerial();
-    setSku(g.sku);
+    setSku(singleSku || g.sku);
     setSerial(g.serial);
   };
 
@@ -46,87 +56,49 @@ export default function CreateItem() {
   const onCreate = async () => {
     setLoading(true);
     try {
-      const successUrl = window.location.origin + "/create?status=paid";
-      const cancelUrl = window.location.href;
-      const checkout = await createCheckout(
-        "Initial item creation",
-        successUrl,
-        cancelUrl
-      );
-      if (checkout.id === "free_mode") {
-        const created = await createItem({
-          sku,
-          serial,
-          itemName,
-          itemDescription,
-          photoUrl: ipfsPhotoUri || photoUrl,
-        });
-        setResult(created);
-        setError(null);
-        // Store recent with initialSecret
-        addRecentItem({
-          sku,
-          serial,
-          itemName,
-          secret: created.initialSecret,
-          kind: "created",
-        });
-      } else {
-        window.location.href = checkout.url;
-      }
+      const created = await createItem({
+        sku,
+        serial,
+        itemName,
+        itemDescription,
+        photoUrl: ipfsPhotoUri || photoUrl,
+      });
+      setResult(created);
+      setError(null);
+      addRecentItem({
+        sku,
+        serial,
+        itemName,
+        secret: created.initialSecret,
+        kind: "created",
+      });
     } catch (e: any) {
       const msg = e?.response?.data?.message || e?.message || "Create failed";
       setError(String(msg));
       setResult(null);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const onFinalizeIfPaid = async () => {
-    const url = new URL(window.location.href);
-    if (url.searchParams.get("status") === "paid" && sku && serial && !result) {
+      // Refresh stamps after operation
       try {
-        const created = await createItem({
-          sku,
-          serial,
-          itemName,
-          itemDescription,
-          photoUrl,
-        });
-        setResult(created);
-        setError(null);
-        addRecentItem({
-          sku,
-          serial,
-          itemName,
-          secret: created.initialSecret,
-          kind: "created",
-        });
-      } catch (e: any) {
-        setResult(null);
-        const msg = e?.response?.data?.message || e?.message || "Create failed";
-        setError(String(msg));
-      }
-      url.searchParams.delete("status");
-      window.history.replaceState({}, "", url.toString());
+        await refresh();
+      } catch {}
     }
   };
 
-  // Try once on mount
-  useState(() => {
-    onFinalizeIfPaid();
-  });
+  // No payment or finalize steps required for creating items
 
   const onBulkCreate = async () => {
     const startNum = parseInt(rangeStart || "");
     const endNum = parseInt(rangeEnd || "");
     const pad = Math.max(0, parseInt(rangeDecimals || "0") || 0);
     if (
-      !sku ||
+      !(singleSku || sku) ||
       Number.isNaN(startNum) ||
       Number.isNaN(endNum) ||
-      startNum > endNum
+      startNum > endNum ||
+      !itemName ||
+      !itemDescription ||
+      !(ipfsPhotoUri || photoUrl)
     )
       return;
     const total = endNum - startNum + 1;
@@ -137,26 +109,17 @@ export default function CreateItem() {
     setBulkFailed(0);
     setBulkErrors([]);
     try {
-      const successUrl = window.location.origin + "/create?status=paid";
-      const cancelUrl = window.location.href;
-      const checkout = await createCheckout(
-        `Bulk item creation x${total}`,
-        successUrl,
-        cancelUrl
-      );
-      if (checkout.id !== "free_mode") {
-        alert("Bulk creation requires FREEMODE enabled.");
-        return;
-      }
       for (let n = startNum; n <= endNum; n++) {
         const serialNum = String(n).padStart(pad, "0");
         try {
           await createItem({
-            sku,
+            sku: singleSku || sku,
             serial: serialNum,
             itemName,
             itemDescription,
             photoUrl: ipfsPhotoUri || photoUrl,
+            stampNowPublic: n === endNum,
+            stampNowPrivate: n === endNum,
           });
           setBulkSuccess((s) => s + 1);
         } catch (e: any) {
@@ -172,8 +135,36 @@ export default function CreateItem() {
       }
     } finally {
       setBulkRunning(false);
+      // Refresh stamps after bulk operation
+      try {
+        await refresh();
+      } catch {}
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="card p-6">
+        <div className="text-stone-600">Checking permissions…</div>
+      </div>
+    );
+  }
+
+  if (!authenticated || !isAdmin) {
+    return (
+      <div className="card p-6">
+        <h2 className="text-xl font-semibold mb-2">Admins only</h2>
+        <p className="text-stone-600 mb-4">
+          You must be a logged-in admin to create items.
+        </p>
+        {!authenticated ? (
+          <button className="btn" onClick={login} type="button">
+            Admin Login
+          </button>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="grid md:grid-cols-2 gap-6">
@@ -232,15 +223,17 @@ export default function CreateItem() {
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2 items-end">
-            <div className="col-span-1">
-              <label className="block text-sm mb-1">SKU</label>
-              <input
-                className="input"
-                value={sku}
-                onChange={(e) => setSku(e.target.value)}
-              />
-            </div>
-            <div className="col-span-2">
+            {singleSku ? null : (
+              <div className="col-span-1">
+                <label className="block text-sm mb-1">SKU</label>
+                <input
+                  className="input"
+                  value={sku}
+                  onChange={(e) => setSku(e.target.value)}
+                />
+              </div>
+            )}
+            <div className={singleSku ? "col-span-3" : "col-span-2"}>
               <label className="block text-sm mb-1">Serial</label>
               <input
                 className="input"
@@ -258,7 +251,7 @@ export default function CreateItem() {
               className="btn"
               disabled={!sku || !serial || loading}
               type="button">
-              Pay $5 & Create
+              Create
             </button>
             {TESTMODE && (
               <button
@@ -311,14 +304,16 @@ export default function CreateItem() {
           numeric and padded with left zeros.
         </p>
         <div className="grid md:grid-cols-3 gap-3 mb-3">
-          <div>
-            <label className="block text-sm mb-1">SKU</label>
-            <input
-              className="input"
-              value={sku}
-              onChange={(e) => setSku(e.target.value)}
-            />
-          </div>
+          {singleSku ? null : (
+            <div>
+              <label className="block text-sm mb-1">SKU</label>
+              <input
+                className="input"
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+              />
+            </div>
+          )}
           <div>
             <label className="block text-sm mb-1">Start</label>
             <input
@@ -354,7 +349,15 @@ export default function CreateItem() {
               className="btn"
               type="button"
               onClick={onBulkCreate}
-              disabled={bulkRunning || !sku || !rangeStart || !rangeEnd}>
+              disabled={
+                bulkRunning ||
+                !(singleSku || sku) ||
+                !rangeStart ||
+                !rangeEnd ||
+                !itemName ||
+                !itemDescription ||
+                !(ipfsPhotoUri || photoUrl)
+              }>
               Start Bulk Create
             </button>
           </div>

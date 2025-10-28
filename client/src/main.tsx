@@ -8,6 +8,7 @@ import CreateItem from "./pages/CreateItem";
 import RegisterAsset from "./pages/RegisterAsset";
 import Verify from "./pages/Verify";
 import { AuthProvider } from "./lib/auth";
+import { ConfigProvider } from "./lib/config";
 
 const router = createBrowserRouter([
   {
@@ -24,8 +25,10 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <AuthProvider>
-      <RouterProvider router={router} />
-    </AuthProvider>
+    <ConfigProvider>
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
+    </ConfigProvider>
   </React.StrictMode>
 );

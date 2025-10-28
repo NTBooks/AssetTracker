@@ -1,4 +1,5 @@
-import { CL_TENANT } from "./env";
+const CL_TENANT =
+  (import.meta.env.VITE_CL_TENANT as string) || "lakeview.chaincart.io";
 
 declare global {
   interface Window {
@@ -31,49 +32,9 @@ export async function ensureClVerifyScript(): Promise<void> {
   } catch {}
 }
 
-export function startClVerifyAutoScan(
-  root: Element | Document = document.body
-): MutationObserver | null {
-  try {
-    // Initial scan
-    try {
-      window.CLVerify && window.CLVerify.scan(root as any);
-    } catch {}
-    const observer = new MutationObserver((mutations) => {
-      let should = false;
-      for (const m of mutations) {
-        for (const node of Array.from(m.addedNodes)) {
-          if ((node as any)?.nodeType === 1) {
-            const el = node as Element;
-            const tag = el.tagName?.toLowerCase?.() || "";
-            if (
-              tag === "clverify" ||
-              el.hasAttribute?.("cid") ||
-              el.querySelector?.("a[cid], clverify")
-            ) {
-              should = true;
-              break;
-            }
-          }
-        }
-        if (should) break;
-      }
-      if (should) {
-        try {
-          window.CLVerify && window.CLVerify.scan(root as any);
-        } catch {}
-      }
-    });
-    observer.observe(root, { childList: true, subtree: true });
-    return observer;
-  } catch {
-    return null;
-  }
-}
-
 export async function initClVerify(
   root: Element | Document = document.body
 ): Promise<MutationObserver | null> {
   await ensureClVerifyScript();
-  return startClVerifyAutoScan(root);
+  return null;
 }
