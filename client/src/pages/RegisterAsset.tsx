@@ -47,7 +47,7 @@ export default function RegisterAsset() {
       setResult(data);
       setShowSecretModal(true);
       addRecentItem({
-        sku,
+        sku: singleSku || sku,
         serial,
         itemName: ownerName,
         secret: data.nextSecret,
@@ -77,7 +77,7 @@ export default function RegisterAsset() {
             setError(null);
             setShowSecretModal(true);
             addRecentItem({
-              sku,
+              sku: singleSku || sku,
               serial,
               itemName: ownerName,
               secret: d.nextSecret,

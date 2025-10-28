@@ -2,9 +2,14 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { contestRegistration, verifyQuery } from "../lib/api";
 import { extractSkuSerialFromSvg } from "../util/svgMeta";
-import { resolveIpfsCidToHttp, toThumbFromUrlOrCid } from "../lib/ipfs";
-import { ClvLink } from "../lib/clv";
+import {
+  resolveIpfsCidToHttp,
+  toThumbFromUrlOrCid,
+  extractCidFromUrlOrString,
+} from "../lib/ipfs";
+import { ClvLink, ClvTag } from "../lib/clv";
 import { useConfig } from "../lib/config";
+import { formatLocalDateTime } from "../lib/datetime";
 
 export default function Verify() {
   const location = useLocation();
@@ -17,6 +22,7 @@ export default function Verify() {
     "landscape" | "portrait" | "square" | null
   >(null);
   const [thumbReady, setThumbReady] = useState(false);
+  const [certReady, setCertReady] = useState(false);
 
   const onSearch = async () => {
     setLoading(true);
@@ -71,6 +77,20 @@ export default function Verify() {
     img.src = url;
   }, [data?.serial?.photo_url]);
 
+  // Preload certificate thumbnail to drive skeleton state
+  useEffect(() => {
+    const url = toThumbFromUrlOrCid(data?.serial?.public_cid, 300);
+    if (!url) {
+      setCertReady(false);
+      return;
+    }
+    setCertReady(false);
+    const img = new Image();
+    img.onload = () => setCertReady(true);
+    img.onerror = () => setCertReady(false);
+    img.src = url;
+  }, [data?.serial?.public_cid]);
+
   const onContest = async (registrationId: number) => {
     const secret = window.prompt("Enter unlock secret for this registration");
     if (!secret) return;
@@ -110,6 +130,52 @@ export default function Verify() {
           Search
         </button>
       </div>
+      {/* Contested/Clean banner */}
+      {data
+        ? (() => {
+            const contestedRegs = (data.registrations || []).filter((r: any) =>
+              Number(r.contested)
+            );
+            if (contestedRegs.length > 0) {
+              return (
+                <div className="card card-danger p-4">
+                  <div className="text-white font-semibold mb-2">
+                    Contested Registrations ({contestedRegs.length})
+                  </div>
+                  <ul className="space-y-2 text-sm text-white/95">
+                    {contestedRegs.map((r: any) => (
+                      <li key={r.id}>
+                        <span className="font-medium">
+                          {r.owner_name || "Unknown"}
+                        </span>{" "}
+                        on {formatLocalDateTime(r.created_at)}
+                        {r.contest_reason ? (
+                          <>
+                            {" "}
+                            — reason:{" "}
+                            <span className="font-medium">
+                              {r.contest_reason}
+                            </span>
+                          </>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            }
+            return (
+              <div className="card p-4 border-green-300 bg-green-50/80">
+                <div className="text-green-800 font-semibold mb-1">
+                  Clean History
+                </div>
+                <div className="text-sm text-green-900">
+                  No contested registrations found for this item.
+                </div>
+              </div>
+            );
+          })()
+        : null}
       {loading ? (
         <div className="grid md:grid-cols-2 gap-4">
           <SkeletonPanel title="Original Certificate" withImage />
@@ -119,21 +185,27 @@ export default function Verify() {
         (data?.serial?.public_cid || data?.serial?.photo_url) && (
           <div className="grid md:grid-cols-2 gap-4">
             {data?.serial?.public_cid ? (
-              <div className="card p-4">
-                <h3 className="font-semibold mb-2">Original Certificate</h3>
-                <ClvLink
-                  cid={data.serial.public_cid}
-                  className="inline-block"
-                  href={resolveIpfsCidToHttp(data.serial.public_cid) || "#"}
-                  target="_blank"
-                  rel="noopener noreferrer">
-                  <FadeImg
-                    src={toThumbFromUrlOrCid(data.serial.public_cid, 300) || ""}
-                    alt="Original certificate"
-                    className="max-h-64 rounded border"
-                  />
-                </ClvLink>
-              </div>
+              certReady ? (
+                <div className="card p-4">
+                  <h3 className="font-semibold mb-2">Original Certificate</h3>
+                  <ClvLink
+                    cid={data.serial.public_cid}
+                    className="inline-block"
+                    href={resolveIpfsCidToHttp(data.serial.public_cid) || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer">
+                    <img
+                      src={
+                        toThumbFromUrlOrCid(data.serial.public_cid, 300) || ""
+                      }
+                      alt="Original certificate"
+                      className="max-h-64 rounded border"
+                    />
+                  </ClvLink>
+                </div>
+              ) : (
+                <SkeletonPanel title="Original Certificate" withImage />
+              )
             ) : null}
             {data?.serial?.photo_url ? (
               <div className="card p-4">
@@ -235,15 +307,24 @@ export default function Verify() {
                     <div>
                       <div className="font-medium">{r.owner_name}</div>
                       <div className="text-sm text-stone-500">
-                        {new Date(r.created_at).toLocaleString()}
+                        {formatLocalDateTime(r.created_at)}
                       </div>
                       {r.public_file_url && (
-                        <a
-                          className="text-autumn-700 underline"
-                          href={r.public_file_url}
-                          target="_blank">
-                          Public file
-                        </a>
+                        <div className="flex items-center gap-2">
+                          <a
+                            className="text-autumn-700 underline"
+                            href={r.public_file_url}
+                            target="_blank">
+                            Public file
+                          </a>
+                          {extractCidFromUrlOrString(r.public_file_url) ? (
+                            <ClvTag
+                              cid={
+                                extractCidFromUrlOrString(r.public_file_url)!
+                              }
+                            />
+                          ) : null}
+                        </div>
                       )}
                       {r.contested ? (
                         <span className="ml-2 text-red-600">Contested</span>

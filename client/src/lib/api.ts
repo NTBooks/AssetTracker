@@ -65,6 +65,7 @@ export async function verifyQuery(sku: string, serial: string) {
       owner_name: string;
       created_at: string;
       contested: number;
+      contest_reason?: string | null;
       public_file_url?: string | null;
     }>;
   };

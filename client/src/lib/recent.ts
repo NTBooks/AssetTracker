@@ -28,11 +28,8 @@ export function addRecentItem(
 ) {
   const list = getRecentItems();
   const when = item.when ?? Date.now();
-  const filtered = list.filter(
-    (x) =>
-      !(x.sku === item.sku && x.serial === item.serial && x.kind === item.kind)
-  );
-  const next = [{ ...item, when }, ...filtered].slice(0, MAX);
+  // Append without de-duplicating so repeated actions on same SKU/Serial are kept
+  const next = [{ ...item, when }, ...list].slice(0, MAX);
   localStorage.setItem(KEY, JSON.stringify(next));
   try {
     window.dispatchEvent(new Event(RECENT_EVENT));

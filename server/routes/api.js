@@ -269,7 +269,7 @@ export default function registerApiRoutes(app) {
             const db = await getDb();
             const serialRow = await db.get('SELECT * FROM serial_numbers WHERE sku=? AND serial=?', [sku, serial]);
             if (!serialRow) return ok(res, 'No record', { serial: null, registrations: [] });
-            const regs = await db.all('SELECT id, owner_name, created_at, contested, public_file_url FROM registrations WHERE serial_id=? ORDER BY id ASC', [serialRow.id]);
+            const regs = await db.all('SELECT id, owner_name, created_at, contested, contest_reason, public_file_url FROM registrations WHERE serial_id=? ORDER BY id ASC', [serialRow.id]);
             const serialOut = serialRow ? {
                 ...serialRow,
                 photo_url: serialRow.photo_url ? resolveIpfsCidToHttp(serialRow.photo_url) : null,

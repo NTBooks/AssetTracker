@@ -46,3 +46,8 @@ body {
 .muted {
   @apply text-stone-600;
 }
+
+/* Emphasis card variants */
+.card-danger {
+  @apply bg-autumn-700 border border-autumn-800 text-white;
+}

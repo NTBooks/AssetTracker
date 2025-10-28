@@ -30,3 +30,15 @@ export function toThumbFromUrlOrCid(
   // Otherwise treat as CID
   return resolveIpfsThumb(urlOrCid, size);
 }
+
+export function extractCidFromUrlOrString(
+  input?: string | null
+): string | null {
+  if (!input) return null;
+  const ipfsUri = input.match(/^ipfs:\/\/([A-Za-z0-9]+)$/i);
+  if (ipfsUri) return ipfsUri[1];
+  const inPath = input.match(/\bipfs\/[A-Za-z0-9]+/i);
+  if (inPath) return inPath[0].split("/").pop() || null;
+  if (/^[A-Za-z0-9]+$/.test(input)) return input;
+  return null;
+}
