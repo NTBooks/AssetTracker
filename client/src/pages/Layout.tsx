@@ -61,7 +61,7 @@ export default function Layout() {
         </main>
       </div>
       <footer className="mt-16 py-8 text-center text-sm text-stone-600">
-        Built with an autumn theme
+        Built with Chainletter Labs, Inc.
       </footer>
     </div>
   );

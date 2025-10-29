@@ -219,20 +219,18 @@ export default function registerApiRoutes(app) {
             const db = await getDb();
             const serialRow = await db.get('SELECT id, item_name, item_description FROM serial_numbers WHERE sku=? AND serial=?', [sku, serial]);
             if (!serialRow) return bad(res, 'Serial not found', 404);
-            const lastUnlock = await db.get('SELECT id, secret_hash FROM unlocks WHERE serial_id=? ORDER BY id DESC LIMIT 1', [serialRow.id]);
+            const lastUnlock = await db.get('SELECT id, secret_hash, revoked FROM unlocks WHERE serial_id=? ORDER BY id DESC LIMIT 1', [serialRow.id]);
             if (!lastUnlock) return bad(res, 'Unlock not found', 404);
 
             const okSecret = await verifySecret(unlockSecret, lastUnlock.secret_hash);
             if (!okSecret) return bad(res, 'Invalid unlock secret', 403);
+            if (Number(lastUnlock.revoked) === 1) return bad(res, 'This transfer has been revoked', 403);
 
-            // Create new secret for next transfer and upload Chainletter artifacts first
-            const nextSecret = await generateSecret();
-            const saleSvg = generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret });
+            // Registration now only stamps the public certificate.
+            // Transfers that create the next private sale doc are done via /api/transfer.
             const publicSvg = generatePublicCertificateSvg({ sku, serial, itemName: serialRow.item_name, itemDescription: serialRow.item_description });
-            let saleUpload, publicUpload;
+            let publicUpload;
             try {
-                // Private sale doc is the only private upload in this series → stamp now for private
-                saleUpload = await uploadPrivateSvg(`sale-${sku}-${serial}.svg`, saleSvg, 'RWA Files (private)', { stampImmediately: true });
                 // Public registration is the only/last public upload in this series → stamp now for public
                 publicUpload = await uploadPublicSvg(`registration-${sku}-${serial}-${Date.now()}.svg`, publicSvg, 'RWA Files (public)', { stampImmediately: true });
             } catch (e) {
@@ -240,21 +238,131 @@ export default function registerApiRoutes(app) {
                 const msg = e?.response?.data?.message || e?.message || 'Chainletter error';
                 return res.status(statusCode).json({ status: 'error', message: `Chainletter upload failed: ${msg}` });
             }
-            if (!saleUpload?.cid || !publicUpload?.url) {
+            if (!publicUpload?.url) {
                 return bad(res, 'Chainletter upload failed or not configured', 503);
             }
 
-            // After successful uploads, persist DB unlock and registration
+            // Determine if this is the first registration for this serial
+            const countRow = await db.get('SELECT COUNT(1) as c FROM registrations WHERE serial_id=?', [serialRow.id]);
+            const isFirst = Number(countRow?.c || 0) === 0;
+
+            // Revoke the secret that was used so it cannot be reused
+            await db.run('UPDATE unlocks SET revoked=1, revoked_at=CURRENT_TIMESTAMP WHERE id=?', [lastUnlock.id]);
+            // Clear pending if this unlock was a pending transfer
+            await db.run('UPDATE serial_numbers SET pending_unlock_id=NULL WHERE id=? AND pending_unlock_id=?', [serialRow.id, lastUnlock.id]);
+
+            // Always issue a brand new next secret for the new owner, but do not start a transfer yet.
+            // The sale document is created only when the owner explicitly initiates Transfer.
+            const nextSecret = await generateSecret();
             const { hash, salt } = await hashSecret(nextSecret);
-            const insertUnlock = await db.run('INSERT INTO unlocks (serial_id, secret_hash, salt, private_cid) VALUES (?, ?, ?, ?)', [serialRow.id, hash, salt, saleUpload.cid ?? null]);
-            const reg = await db.run('INSERT INTO registrations (serial_id, owner_name, public_file_url, private_file_url, unlock_id) VALUES (?, ?, ?, ?, ?)', [serialRow.id, ownerName, publicUpload.url, saleUpload.url, insertUnlock.lastID]);
+            await db.run('INSERT INTO unlocks (serial_id, secret_hash, salt, private_cid) VALUES (?, ?, ?, ?)', [serialRow.id, hash, salt, null]);
+
+            // For first registration, also return a ready-to-download private sale SVG
+            // (not uploaded to Chainletter, no pending transfer yet)
+            let firstSaleSvg = null;
+            let firstSaleFilename = null;
+            if (isFirst) {
+                firstSaleSvg = generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret });
+                firstSaleFilename = `sale-${sku}-${serial}.svg`;
+            }
+
+            // Persist the registration referencing the used unlock
+            const reg = await db.run('INSERT INTO registrations (serial_id, owner_name, public_file_url, private_file_url, unlock_id) VALUES (?, ?, ?, ?, ?)', [serialRow.id, ownerName, publicUpload.url, null, lastUnlock.id]);
 
             return ok(res, 'Registered', {
                 registrationId: reg.lastID,
                 publicUrl: publicUpload.url,
-                privateUrl: `/api/ipfs/${saleUpload.cid}?filename=${encodeURIComponent(`sale-${sku}-${serial}.svg`)}`,
-                nextSecret
+                nextSecret,
+                ...(isFirst ? { filename: firstSaleFilename, svg: firstSaleSvg } : {})
             });
+        } catch (e) {
+            return bad(res, e.message);
+        }
+    });
+
+    // Create a new private sale document (Transfer) by current owner (latest registrant)
+    app.post('/api/transfer', async (req, res) => {
+        try {
+            const sanitize = (v) => typeof v === 'string' ? v.slice(0, 2000) : v;
+            const forcedSku = (process.env.SINGLE_SKU || '').trim();
+            const sku = forcedSku || sanitize(req.body?.sku);
+            const serial = sanitize(req.body?.serial);
+            const secret = sanitize(req.body?.secret);
+            const ownerName = sanitize(req.body?.ownerName || '');
+            if (!sku || !serial || !secret) return bad(res, 'Missing fields');
+            const db = await getDb();
+            const serialRow = await db.get('SELECT * FROM serial_numbers WHERE sku=? AND serial=?', [sku, serial]);
+            if (!serialRow) return bad(res, 'Serial not found', 404);
+            if (serialRow.pending_unlock_id) {
+                const pending = await db.get('SELECT revoked FROM unlocks WHERE id=?', [serialRow.pending_unlock_id]);
+                if (pending && Number(pending.revoked) !== 1) {
+                    return bad(res, 'Transfer already pending. Revoke it before creating a new one.', 409);
+                }
+            }
+            // Verify provided secret corresponds to the newest active (non-revoked) unlock.
+            // After first registration, this is the next-secret created for the current owner.
+            const lastUnlock = await db.get('SELECT id, secret_hash FROM unlocks WHERE serial_id=? AND COALESCE(revoked,0)=0 ORDER BY id DESC LIMIT 1', [serialRow.id]);
+            if (!lastUnlock) return bad(res, 'No active unlock found', 400);
+            const okKey = await verifySecret(secret, lastUnlock.secret_hash);
+            if (!okKey) return bad(res, 'Invalid key', 403);
+
+            // Upload private sale doc using the current owner's active secret provided here
+            const saleSvg = generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret: secret });
+            let saleUpload;
+            try {
+                saleUpload = await uploadPrivateSvg(`sale-${sku}-${serial}.svg`, saleSvg, 'RWA Files (private)', { stampImmediately: true });
+            } catch (e) {
+                const statusCode = e?.response?.status || 502;
+                const msg = e?.response?.data?.message || e?.message || 'Chainletter error';
+                return res.status(statusCode).json({ status: 'error', message: `Chainletter upload failed: ${msg}` });
+            }
+            if (!saleUpload?.cid) return bad(res, 'Upload failed', 502);
+            // Attach the sale doc to the existing active unlock and mark as pending
+            await db.run('UPDATE unlocks SET private_cid=? WHERE id=?', [saleUpload.cid ?? null, lastUnlock.id]);
+            await db.run('UPDATE serial_numbers SET pending_unlock_id=? WHERE id=?', [lastUnlock.id, serialRow.id]);
+
+            return ok(res, 'Transfer created', {
+                privateUrl: `/api/ipfs/${saleUpload.cid}?filename=${encodeURIComponent(`sale-${sku}-${serial}.svg`)}`,
+                filename: `sale-${sku}-${serial}.svg`,
+                svg: saleSvg,
+            });
+        } catch (e) {
+            return bad(res, e.message);
+        }
+    });
+
+    // Revoke a pending transfer
+    app.post('/api/revoke', async (req, res) => {
+        try {
+            const sanitize = (v) => typeof v === 'string' ? v.slice(0, 2000) : v;
+            const forcedSku = (process.env.SINGLE_SKU || '').trim();
+            const sku = forcedSku || sanitize(req.body?.sku);
+            const serial = sanitize(req.body?.serial);
+            const secret = sanitize(req.body?.secret);
+            if (!sku || !serial || !secret) return bad(res, 'Missing fields');
+            const db = await getDb();
+            const serialRow = await db.get('SELECT * FROM serial_numbers WHERE sku=? AND serial=?', [sku, serial]);
+            if (!serialRow) return bad(res, 'Serial not found', 404);
+            if (!serialRow.pending_unlock_id) return bad(res, 'No pending transfer to revoke', 400);
+
+            // Verify with the current owner's active (non-revoked) registration secret
+            const activeUnlock = await db.get('SELECT id, secret_hash FROM unlocks WHERE serial_id=? AND COALESCE(revoked,0)=0 ORDER BY id DESC LIMIT 1', [serialRow.id]);
+            if (!activeUnlock) return bad(res, 'No active key for this serial', 400);
+            const okKey = await verifySecret(secret, activeUnlock.secret_hash);
+            if (!okKey) return bad(res, 'Invalid key', 403);
+
+            // Revoke the pending unlock
+            await db.run('UPDATE unlocks SET revoked=1, revoked_at=CURRENT_TIMESTAMP WHERE id=?', [serialRow.pending_unlock_id]);
+            await db.run('UPDATE serial_numbers SET pending_unlock_id=NULL WHERE id=?', [serialRow.id]);
+
+            // Create an informational public record (revocation notice)
+            const nowIso = new Date().toISOString();
+            const message = `Transfer revoked\nSKU: ${sku}\nSerial: ${serial}\nTimestamp: ${nowIso} (UTC)`;
+            const buffer = Buffer.from(message, 'utf8');
+            const filename = `revoke-${sku}-${serial}-${Date.now()}.txt`;
+            const uploaded = await uploadArbitraryFile({ buffer, filename, contentType: 'text/plain', visibility: 'public', groupName: 'RWA Files (public)', stampImmediately: true });
+
+            return ok(res, 'Revoked', { proofCid: uploaded?.cid || null, proofUrl: uploaded?.url || null });
         } catch (e) {
             return bad(res, e.message);
         }
@@ -295,11 +403,12 @@ export default function registerApiRoutes(app) {
             const reason = reasonRaw;
             if (!registrationId || !secret) return bad(res, 'Missing fields');
             const db = await getDb();
-            const reg = await db.get('SELECT id, unlock_id FROM registrations WHERE id=?', [registrationId]);
+            const reg = await db.get('SELECT id, serial_id FROM registrations WHERE id=?', [registrationId]);
             if (!reg) return bad(res, 'Registration not found', 404);
-            const unlock = await db.get('SELECT secret_hash FROM unlocks WHERE id=?', [reg.unlock_id]);
-            if (!unlock) return bad(res, 'Unlock not found', 404);
-            const okKey = await verifySecret(secret, unlock.secret_hash);
+            // Validate against newest active key for this serial (current owner's key)
+            const activeUnlock = await db.get('SELECT id, secret_hash FROM unlocks WHERE serial_id=? AND COALESCE(revoked,0)=0 ORDER BY id DESC LIMIT 1', [reg.serial_id]);
+            if (!activeUnlock) return bad(res, 'No active key for this registration', 403);
+            const okKey = await verifySecret(secret, activeUnlock.secret_hash);
             if (!okKey) return bad(res, 'Invalid key', 403);
             await db.run('UPDATE registrations SET contested=1, contest_reason=? WHERE id=?', [reason, registrationId]);
             return ok(res, 'Contested');
@@ -322,9 +431,10 @@ export default function registerApiRoutes(app) {
             const db = await getDb();
             const reg = await db.get('SELECT id, owner_name, unlock_id, created_at, serial_id FROM registrations WHERE id=?', [registrationId]);
             if (!reg) return bad(res, 'Registration not found', 404);
-            const unlock = await db.get('SELECT secret_hash FROM unlocks WHERE id=?', [reg.unlock_id]);
-            if (!unlock) return bad(res, 'Unlock not found', 404);
-            const okKey = await verifySecret(secret, unlock.secret_hash);
+            // Use the newest active (non-revoked) unlock for this serial – current owner's key
+            const activeUnlock = await db.get('SELECT id, secret_hash FROM unlocks WHERE serial_id=? AND COALESCE(revoked,0)=0 ORDER BY id DESC LIMIT 1', [reg.serial_id]);
+            if (!activeUnlock) return bad(res, 'No active key for this registration', 403);
+            const okKey = await verifySecret(secret, activeUnlock.secret_hash);
             if (!okKey) return bad(res, 'Invalid key', 403);
 
             // Build full registration chain (oldest to newest)

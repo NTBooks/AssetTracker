@@ -32,6 +32,7 @@ export async function initDb() {
       photo_url TEXT,
       public_cid TEXT,
       created_by_email TEXT,
+      pending_unlock_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (sku, serial)
     );
@@ -42,6 +43,8 @@ export async function initDb() {
       secret_hash TEXT NOT NULL,
       salt TEXT NOT NULL,
       private_cid TEXT,
+      revoked INTEGER DEFAULT 0,
+      revoked_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (serial_id) REFERENCES serial_numbers(id) ON DELETE CASCADE
     );
@@ -64,7 +67,10 @@ export async function initDb() {
   // Backfill schema columns if database was created before these fields existed
   try { await dbInstance.exec(`ALTER TABLE serial_numbers ADD COLUMN public_cid TEXT`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE serial_numbers ADD COLUMN created_by_email TEXT`); } catch { }
+  try { await dbInstance.exec(`ALTER TABLE serial_numbers ADD COLUMN pending_unlock_id INTEGER`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE unlocks ADD COLUMN private_cid TEXT`); } catch { }
+  try { await dbInstance.exec(`ALTER TABLE unlocks ADD COLUMN revoked INTEGER DEFAULT 0`); } catch { }
+  try { await dbInstance.exec(`ALTER TABLE unlocks ADD COLUMN revoked_at DATETIME`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE registrations ADD COLUMN contest_reason TEXT`); } catch { }
 
   return dbInstance;

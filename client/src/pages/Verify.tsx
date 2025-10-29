@@ -5,6 +5,8 @@ import {
   verifyQuery,
   createProof,
   createCheckout,
+  createTransfer,
+  revokeTransfer,
 } from "../lib/api";
 import { extractSkuSerialFromSvg } from "../util/svgMeta";
 import {
@@ -45,6 +47,19 @@ export default function Verify() {
     error?: string;
     loading: boolean;
   }>({ open: false, secret: "", phrase: "", loading: false });
+  const [transferModal, setTransferModal] = useState<{
+    open: boolean;
+    secret: string;
+    ownerName: string;
+    loading: boolean;
+    error?: string;
+  }>({ open: false, secret: "", ownerName: "", loading: false });
+  const [revokeModal, setRevokeModal] = useState<{
+    open: boolean;
+    secret: string;
+    loading: boolean;
+    error?: string;
+  }>({ open: false, secret: "", loading: false });
 
   const onSearch = async () => {
     setLoading(true);
@@ -146,6 +161,24 @@ export default function Verify() {
     });
   };
 
+  const onOpenTransfer = () => {
+    setTransferModal({
+      open: true,
+      secret: "",
+      ownerName: "",
+      loading: false,
+      error: undefined,
+    });
+  };
+  const onOpenRevoke = () => {
+    setRevokeModal({
+      open: true,
+      secret: "",
+      loading: false,
+      error: undefined,
+    });
+  };
+
   const finalizeProof = async (registrationId: number) => {
     try {
       const stored = sessionStorage.getItem(`proof.${registrationId}`);
@@ -196,7 +229,7 @@ export default function Verify() {
       // open proof page with clverify tag
       window.open(`/proof?cid=${encodeURIComponent(resp.cid)}`, "_blank");
     } catch (e) {
-      // ignore
+      throw e;
     }
   };
 
@@ -409,7 +442,7 @@ export default function Verify() {
                   registration secret to make changes.
                 </p>
                 <ul className="divide-y">
-                  {(data.registrations ?? []).map((r: any) => (
+                  {(data.registrations ?? []).map((r: any, idx: number) => (
                     <li
                       key={r.id}
                       className="py-3 flex items-center justify-between">
@@ -450,6 +483,21 @@ export default function Verify() {
                           onClick={() => onCreateProof(r.id)}>
                           Create proof
                         </button>
+                        {idx === (data.registrations?.length || 0) - 1 ? (
+                          data.serial?.pending_unlock_id ? (
+                            <button
+                              className="btn-danger"
+                              onClick={onOpenRevoke}>
+                              Revoke
+                            </button>
+                          ) : (
+                            <button
+                              className="btn-outline"
+                              onClick={onOpenTransfer}>
+                              Transfer
+                            </button>
+                          )
+                        ) : null}
                       </div>
                     </li>
                   ))}
@@ -573,6 +621,17 @@ export default function Verify() {
                     error: undefined,
                   }));
                   try {
+                    const a = (proofModal.secret || "").trim();
+                    const b = (proofModal.phrase || "").trim();
+                    if (a && b && a === b) {
+                      setProofModal((m) => ({
+                        ...m,
+                        loading: false,
+                        error:
+                          "Phrase must be different from your registration secret",
+                      }));
+                      return;
+                    }
                     sessionStorage.setItem(
                       `proof.${proofModal.registrationId}`,
                       JSON.stringify({
@@ -610,6 +669,154 @@ export default function Verify() {
                   }
                 }}>
                 Create
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Transfer Modal */}
+      {transferModal.open ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
+            <h3 className="text-lg font-semibold mb-2">
+              Create Transfer Document
+            </h3>
+            {transferModal.error ? (
+              <div className="mb-3 text-red-700">{transferModal.error}</div>
+            ) : null}
+            <label className="block text-sm mb-1">Registration Secret</label>
+            <input
+              className="input mb-3"
+              value={transferModal.secret}
+              onChange={(e) =>
+                setTransferModal((m) => ({ ...m, secret: e.target.value }))
+              }
+            />
+            <label className="block text-sm mb-1">Your Name (optional)</label>
+            <input
+              className="input mb-4"
+              value={transferModal.ownerName}
+              onChange={(e) =>
+                setTransferModal((m) => ({ ...m, ownerName: e.target.value }))
+              }
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                className="btn-outline"
+                onClick={() =>
+                  setTransferModal((m) => ({ ...m, open: false }))
+                }>
+                Cancel
+              </button>
+              <button
+                className="btn"
+                disabled={!transferModal.secret || transferModal.loading}
+                onClick={async () => {
+                  setTransferModal((m) => ({
+                    ...m,
+                    loading: true,
+                    error: undefined,
+                  }));
+                  try {
+                    const resp = await createTransfer({
+                      sku: singleSku || sku,
+                      serial,
+                      secret: transferModal.secret,
+                      ownerName: transferModal.ownerName,
+                    });
+                    // download SVG directly (private URL is admin-only)
+                    if (resp?.svg) {
+                      const filename =
+                        resp.filename ||
+                        `sale-${singleSku || sku}-${serial}.svg`;
+                      const blob = new Blob([resp.svg], {
+                        type: "image/svg+xml;charset=utf-8",
+                      });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = filename;
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                      URL.revokeObjectURL(url);
+                    }
+                    setTransferModal((m) => ({
+                      ...m,
+                      open: false,
+                      loading: false,
+                    }));
+                    await onSearch();
+                  } catch (e: any) {
+                    const msg = e?.response?.data?.message || "Transfer failed";
+                    setTransferModal((m) => ({
+                      ...m,
+                      loading: false,
+                      error: String(msg),
+                    }));
+                  }
+                }}>
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Revoke Modal */}
+      {revokeModal.open ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
+            <h3 className="text-lg font-semibold mb-2">Revoke Transfer</h3>
+            {revokeModal.error ? (
+              <div className="mb-3 text-red-700">{revokeModal.error}</div>
+            ) : null}
+            <label className="block text-sm mb-1">Registration Secret</label>
+            <input
+              className="input mb-4"
+              value={revokeModal.secret}
+              onChange={(e) =>
+                setRevokeModal((m) => ({ ...m, secret: e.target.value }))
+              }
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                className="btn-outline"
+                onClick={() => setRevokeModal((m) => ({ ...m, open: false }))}>
+                Cancel
+              </button>
+              <button
+                className="btn-danger"
+                disabled={!revokeModal.secret || revokeModal.loading}
+                onClick={async () => {
+                  setRevokeModal((m) => ({
+                    ...m,
+                    loading: true,
+                    error: undefined,
+                  }));
+                  try {
+                    await revokeTransfer({
+                      sku: singleSku || sku,
+                      serial,
+                      secret: revokeModal.secret,
+                    });
+                    setRevokeModal((m) => ({
+                      ...m,
+                      open: false,
+                      loading: false,
+                    }));
+                    await onSearch();
+                  } catch (e: any) {
+                    const msg = e?.response?.data?.message || "Revoke failed";
+                    setRevokeModal((m) => ({
+                      ...m,
+                      loading: false,
+                      error: String(msg),
+                    }));
+                  }
+                }}>
+                Revoke
               </button>
             </div>
           </div>

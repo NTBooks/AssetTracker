@@ -44,8 +44,23 @@ export default function RegisterAsset() {
         ownerName,
         unlockSecret,
       });
+      if (data?.svg) {
+        const filename =
+          data.filename || `sale-${singleSku || sku}-${serial}.svg`;
+        const blob = new Blob([data.svg], {
+          type: "image/svg+xml;charset=utf-8",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
       setResult(data);
-      setShowSecretModal(true);
+      setShowSecretModal(Boolean(data?.nextSecret));
       addRecentItem({
         sku: singleSku || sku,
         serial,
@@ -75,7 +90,22 @@ export default function RegisterAsset() {
           .then((d) => {
             setResult(d);
             setError(null);
-            setShowSecretModal(true);
+            setShowSecretModal(Boolean(d?.nextSecret));
+            if (d?.svg) {
+              const filename =
+                d.filename || `sale-${singleSku || sku}-${serial}.svg`;
+              const blob = new Blob([d.svg], {
+                type: "image/svg+xml;charset=utf-8",
+              });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = filename;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(url);
+            }
             addRecentItem({
               sku: singleSku || sku,
               serial,
@@ -199,9 +229,11 @@ export default function RegisterAsset() {
           <div className="text-red-700">{error}</div>
         ) : result ? (
           <div className="space-y-3">
-            <div className="text-stone-700">
-              A new secret was generated and shown to you.
-            </div>
+            {result.nextSecret ? (
+              <div className="text-stone-700">
+                A new secret was generated and shown to you.
+              </div>
+            ) : null}
             <div className="flex gap-2 flex-wrap">
               {result.publicUrl ? (
                 <a

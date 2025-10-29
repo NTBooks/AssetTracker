@@ -53,6 +53,8 @@ export async function registerAsset(payload: {
     publicUrl?: string | null;
     privateUrl?: string | null;
     nextSecret: string;
+    filename?: string;
+    svg?: string;
   };
 }
 
@@ -116,4 +118,27 @@ export async function createProof(payload: {
     ipfsUri: string | null;
     text: string;
   };
+}
+
+export async function createTransfer(payload: {
+  sku: string;
+  serial: string;
+  secret: string;
+  ownerName?: string;
+}) {
+  const { data } = await axios.post("/api/transfer", payload);
+  return data.data as {
+    privateUrl?: string | null;
+    filename: string;
+    svg: string;
+  };
+}
+
+export async function revokeTransfer(payload: {
+  sku: string;
+  serial: string;
+  secret: string;
+}) {
+  const { data } = await axios.post("/api/revoke", payload);
+  return data.data as { proofCid?: string | null; proofUrl?: string | null };
 }
