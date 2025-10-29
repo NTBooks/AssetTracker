@@ -96,11 +96,11 @@ export function generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret }) {
     <text class="value" x="160" y="40">${serial}</text>
     <text class="label" x="0" y="80">New Owner</text>
     <text class="value" x="160" y="80">${ownerName}</text>
-    <text class="label" x="0" y="130">Unlock Secret For Next Transfer</text>
+    <text class="label" x="0" y="130">Registration Secret For Next Transfer</text>
     <text class="value" x="160" y="130">${nextSecret}</text>
     <foreignObject x="0" y="180" width="820" height="280">
       <div xmlns="http://www.w3.org/1999/xhtml" style="font:16px sans-serif;color:#111827;white-space:pre-wrap">
-        Keep this SVG private. To register ownership, visit the Verify page and use SKU/Serial, then the Register Asset form with the Unlock Secret above. After registering, you will receive a new private sale document for the next transfer.
+        Keep this SVG private. To register ownership, visit the Verify page and use SKU/Serial, then the Register Asset form with the Registration Secret above. After registering, you will receive a new private sale document for the next transfer.
       </div>
     </foreignObject>
   </g>`;

@@ -157,7 +157,7 @@ export default function Verify() {
         phrase = obj?.phrase || "";
       }
       if (!secret) {
-        const s = window.prompt("Re-enter unlock secret");
+        const s = window.prompt("Re-enter registration secret");
         if (!s) return;
         secret = s;
       }
@@ -278,35 +278,12 @@ export default function Verify() {
         : null}
       {loading ? (
         <div className="grid md:grid-cols-2 gap-4">
-          <SkeletonPanel title="Original Certificate" withImage />
           <SkeletonPanel title="Item" withImage lines={3} />
+          <SkeletonPanel title="Original Certificate" withImage />
         </div>
       ) : (
         (data?.serial?.public_cid || data?.serial?.photo_url) && (
           <div className="grid md:grid-cols-2 gap-4">
-            {data?.serial?.public_cid ? (
-              certReady ? (
-                <div className="card p-4">
-                  <h3 className="font-semibold mb-2">Original Certificate</h3>
-                  <ClvLink
-                    cid={data.serial.public_cid}
-                    className="inline-block"
-                    href={resolveIpfsCidToHttp(data.serial.public_cid) || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer">
-                    <img
-                      src={
-                        toThumbFromUrlOrCid(data.serial.public_cid, 300) || ""
-                      }
-                      alt="Original certificate"
-                      className="max-h-64 rounded border"
-                    />
-                  </ClvLink>
-                </div>
-              ) : (
-                <SkeletonPanel title="Original Certificate" withImage />
-              )
-            ) : null}
             {data?.serial?.photo_url ? (
               <div className="card p-4">
                 <h3 className="font-semibold mb-2">Item</h3>
@@ -362,6 +339,29 @@ export default function Verify() {
                 )}
               </div>
             ) : null}
+            {data?.serial?.public_cid ? (
+              certReady ? (
+                <div className="card p-4">
+                  <h3 className="font-semibold mb-2">Original Certificate</h3>
+                  <ClvLink
+                    cid={data.serial.public_cid}
+                    className="inline-block"
+                    href={resolveIpfsCidToHttp(data.serial.public_cid) || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer">
+                    <img
+                      src={
+                        toThumbFromUrlOrCid(data.serial.public_cid, 300) || ""
+                      }
+                      alt="Original certificate"
+                      className="max-h-64 rounded border"
+                    />
+                  </ClvLink>
+                </div>
+              ) : (
+                <SkeletonPanel title="Original Certificate" withImage />
+              )
+            ) : null}
           </div>
         )
       )}
@@ -381,10 +381,13 @@ export default function Verify() {
                 <div>
                   <div className="text-sm text-stone-600">Status</div>
                   <div className="font-semibold">
-                    {chainCount} link(s) •{" "}
+                    {chainCount}{" "}
+                    {chainCount === 1 ? "registration" : "registrations"} •{" "}
                     {contestedCount
-                      ? `${contestedCount} contested`
-                      : "no contests"}
+                      ? `${contestedCount} ${
+                          contestedCount === 1 ? "issue" : "issues"
+                        }`
+                      : "no issues"}
                   </div>
                 </div>
                 <a
@@ -397,55 +400,62 @@ export default function Verify() {
               </div>
             </div>
 
-            <div className="card p-4">
-              <h3 className="font-semibold mb-2">Registrations</h3>
-              <ul className="divide-y">
-                {(data.registrations ?? []).map((r: any) => (
-                  <li
-                    key={r.id}
-                    className="py-3 flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">{r.owner_name}</div>
-                      <div className="text-sm text-stone-500">
-                        {formatLocalDateTime(r.created_at)}
-                      </div>
-                      {r.public_file_url && (
-                        <div className="flex items-center gap-2">
-                          <a
-                            className="text-autumn-700 underline"
-                            href={r.public_file_url}
-                            target="_blank">
-                            Public file
-                          </a>
-                          {extractCidFromUrlOrString(r.public_file_url) ? (
-                            <ClvTag
-                              cid={
-                                extractCidFromUrlOrString(r.public_file_url)!
-                              }
-                            />
-                          ) : null}
+            {(data.registrations ?? []).length > 0 ? (
+              <div className="card p-4">
+                <h3 className="font-semibold mb-2">Registrations</h3>
+                <p className="text-sm text-stone-600 mb-3">
+                  Note: You can only create proofs or report issues for
+                  registrations you control, and you will need the original
+                  registration secret to make changes.
+                </p>
+                <ul className="divide-y">
+                  {(data.registrations ?? []).map((r: any) => (
+                    <li
+                      key={r.id}
+                      className="py-3 flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">{r.owner_name}</div>
+                        <div className="text-sm text-stone-500">
+                          {formatLocalDateTime(r.created_at)}
                         </div>
-                      )}
-                      {r.contested ? (
-                        <span className="ml-2 text-red-600">Contested</span>
-                      ) : null}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        className="btn-outline"
-                        onClick={() => onContest(r.id)}>
-                        Contest
-                      </button>
-                      <button
-                        className="btn"
-                        onClick={() => onCreateProof(r.id)}>
-                        Create proof
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
+                        {r.public_file_url && (
+                          <div className="flex items-center gap-2">
+                            <a
+                              className="text-autumn-700 underline"
+                              href={r.public_file_url}
+                              target="_blank">
+                              Public file
+                            </a>
+                            {extractCidFromUrlOrString(r.public_file_url) ? (
+                              <ClvTag
+                                cid={
+                                  extractCidFromUrlOrString(r.public_file_url)!
+                                }
+                              />
+                            ) : null}
+                          </div>
+                        )}
+                        {r.contested ? (
+                          <span className="ml-2 text-red-600">Contested</span>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="btn-danger"
+                          onClick={() => onContest(r.id)}>
+                          Report
+                        </button>
+                        <button
+                          className="btn"
+                          onClick={() => onCreateProof(r.id)}>
+                          Create proof
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
         )
       )}
@@ -457,7 +467,7 @@ export default function Verify() {
             {contestModal.error ? (
               <div className="mb-3 text-red-700">{contestModal.error}</div>
             ) : null}
-            <label className="block text-sm mb-1">Unlock Secret</label>
+            <label className="block text-sm mb-1">Registration Secret</label>
             <input
               className="input mb-3"
               value={contestModal.secret}
@@ -530,7 +540,7 @@ export default function Verify() {
             {proofModal.error ? (
               <div className="mb-3 text-red-700">{proofModal.error}</div>
             ) : null}
-            <label className="block text-sm mb-1">Unlock Secret</label>
+            <label className="block text-sm mb-1">Registration Secret</label>
             <input
               className="input mb-3"
               value={proofModal.secret}
@@ -642,15 +652,17 @@ function SkeletonPanel({
   lines?: number;
 }) {
   return (
-    <div className="card p-4 animate-pulse">
+    <div className="card p-4">
       <h3 className="font-semibold mb-2">{title}</h3>
-      {withImage ? (
-        <div className="w-full h-40 bg-stone-200 rounded mb-3" />
-      ) : null}
-      <div className="space-y-2">
-        {Array.from({ length: lines }).map((_, i) => (
-          <div key={i} className="h-3 bg-stone-200 rounded" />
-        ))}
+      <div className="animate-pulse">
+        {withImage ? (
+          <div className="w-full h-40 bg-stone-200 rounded mb-3" />
+        ) : null}
+        <div className="space-y-2">
+          {Array.from({ length: lines }).map((_, i) => (
+            <div key={i} className="h-3 bg-stone-200 rounded" />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -658,9 +670,9 @@ function SkeletonPanel({
 
 function SkeletonList({ title, items = 3 }: { title: string; items?: number }) {
   return (
-    <div className="card p-4 animate-pulse">
+    <div className="card p-4">
       <h3 className="font-semibold mb-2">{title}</h3>
-      <div className="space-y-3">
+      <div className="space-y-3 animate-pulse">
         {Array.from({ length: items }).map((_, i) => (
           <div key={i} className="flex items-center justify-between">
             <div className="space-y-2 w-2/3">

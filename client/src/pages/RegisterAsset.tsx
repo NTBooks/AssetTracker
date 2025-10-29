@@ -163,7 +163,7 @@ export default function RegisterAsset() {
           />
         </div>
         <div>
-          <label className="block text-sm mb-1">Unlock Secret</label>
+          <label className="block text-sm mb-1">Registration Secret</label>
           <input
             className="input"
             value={unlockSecret}
@@ -198,26 +198,30 @@ export default function RegisterAsset() {
         {error ? (
           <div className="text-red-700">{error}</div>
         ) : result ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="text-stone-700">
               A new secret was generated and shown to you.
             </div>
-            {result.publicUrl && (
-              <a
-                className="text-autumn-700 underline"
-                href={result.publicUrl}
-                target="_blank">
-                Public Registration
-              </a>
-            )}
-            {result.privateUrl && (
-              <a
-                className="text-autumn-700 underline"
-                href={result.privateUrl}
-                target="_blank">
-                Private Sale Document
-              </a>
-            )}
+            <div className="flex gap-2 flex-wrap">
+              {result.publicUrl ? (
+                <a
+                  className="btn-outline"
+                  href={result.publicUrl}
+                  target="_blank"
+                  rel="noopener noreferrer">
+                  Public Registration
+                </a>
+              ) : null}
+              {result.privateUrl ? (
+                <a
+                  className="btn-outline"
+                  href={result.privateUrl}
+                  target="_blank"
+                  rel="noopener noreferrer">
+                  Private Sale Document
+                </a>
+              ) : null}
+            </div>
           </div>
         ) : (
           <p className="text-stone-600">Awaiting submission.</p>

@@ -320,15 +320,24 @@ export default function registerApiRoutes(app) {
             if (!registrationId || !sku || !serial || !phrase || !secret) return bad(res, 'Missing fields');
 
             const db = await getDb();
-            const reg = await db.get('SELECT id, owner_name, unlock_id, created_at FROM registrations WHERE id=?', [registrationId]);
+            const reg = await db.get('SELECT id, owner_name, unlock_id, created_at, serial_id FROM registrations WHERE id=?', [registrationId]);
             if (!reg) return bad(res, 'Registration not found', 404);
             const unlock = await db.get('SELECT secret_hash FROM unlocks WHERE id=?', [reg.unlock_id]);
             if (!unlock) return bad(res, 'Unlock not found', 404);
             const okKey = await verifySecret(secret, unlock.secret_hash);
             if (!okKey) return bad(res, 'Invalid key', 403);
 
+            // Build full registration chain (oldest to newest)
+            const regs = await db.all('SELECT id, owner_name, created_at FROM registrations WHERE serial_id=? ORDER BY id ASC', [reg.serial_id]);
             const nowIso = new Date().toISOString();
-            const content = `Proof of Registration\nSKU: ${sku}\nSerial: ${serial}\nOwner: ${reg.owner_name}\nRegistration Created At: ${reg.created_at}\nProof Generated At: ${nowIso}\nPhrase: ${phrase}\n`;
+            let chain = 'Registration Chain (oldest → newest)\n';
+            regs.forEach((r, idx) => {
+                const marker = Number(r.id) === Number(registrationId) ? '-> ' : '   ';
+                chain += `${marker}[${idx + 1}] Owner: ${r.owner_name} • Created At: ${r.created_at} (UTC)\n`;
+            });
+            const disclaimer = `\nNote: This proof reflects data as of ${nowIso} (UTC). If any transfer or change is being considered, generate a fresh proof to ensure the most current state is captured.\n`;
+            const header = `Proof of Registration\nSKU: ${sku}\nSerial: ${serial}\nFocused Registration ID: ${registrationId}\nPhrase: ${phrase}\n`;
+            const content = `${header}\n${chain}${disclaimer}`;
             const buffer = Buffer.from(content, 'utf8');
             const filename = `proof-${sku}-${serial}-${Date.now()}.txt`;
             const uploaded = await uploadArbitraryFile({ buffer, filename, contentType: 'text/plain', visibility: 'public', groupName: 'RWA Files (public)', stampImmediately: true });

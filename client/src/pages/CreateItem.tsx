@@ -274,22 +274,26 @@ export default function CreateItem() {
               Initial Secret:{" "}
               <span className="font-mono">{result.initialSecret}</span>
             </div>
-            {result.certificateUrl && (
-              <a
-                className="text-autumn-700 underline"
-                href={result.certificateUrl}
-                target="_blank">
-                Public Certificate
-              </a>
-            )}
-            {result.privateUrl && (
-              <a
-                className="text-autumn-700 underline"
-                href={result.privateUrl}
-                target="_blank">
-                Private Sale Document
-              </a>
-            )}
+            <div className="flex gap-2 flex-wrap pt-1">
+              {result.certificateUrl ? (
+                <a
+                  className="btn-outline"
+                  href={result.certificateUrl}
+                  target="_blank"
+                  rel="noopener noreferrer">
+                  Public Certificate
+                </a>
+              ) : null}
+              {result.privateUrl ? (
+                <a
+                  className="btn-outline"
+                  href={result.privateUrl}
+                  target="_blank"
+                  rel="noopener noreferrer">
+                  Private Sale Document
+                </a>
+              ) : null}
+            </div>
           </div>
         ) : (
           <p className="text-stone-600">No item created yet.</p>

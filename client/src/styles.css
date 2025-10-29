@@ -32,6 +32,9 @@ body {
 .btn-outline {
   @apply inline-flex items-center justify-center px-4 py-2 rounded-lg border border-autumn-500 text-autumn-700 hover:bg-autumn-100 transition-colors focus:outline-none focus:ring-2 focus:ring-autumn-300 focus:ring-opacity-50;
 }
+.btn-danger {
+  @apply inline-flex items-center justify-center px-4 py-2 rounded-lg bg-autumn-700 text-white hover:bg-autumn-800 disabled:opacity-50 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-autumn-400 focus:ring-opacity-50;
+}
 .card {
   @apply bg-white/90 backdrop-blur shadow-md rounded-xl border border-autumn-100;
 }
