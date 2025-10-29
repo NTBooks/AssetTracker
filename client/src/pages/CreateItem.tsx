@@ -13,6 +13,8 @@ export default function CreateItem() {
     login,
     refresh,
   } = useAuth();
+  const hideLogin =
+    String(import.meta.env.VITE_HIDE_LOGIN || "").toLowerCase() === "true";
   const { singleSku } = useConfig();
   const [sku, setSku] = useState("");
   const [serial, setSerial] = useState("");
@@ -157,7 +159,7 @@ export default function CreateItem() {
         <p className="text-stone-600 mb-4">
           You must be a logged-in admin to create items.
         </p>
-        {!authenticated ? (
+        {!authenticated && !hideLogin ? (
           <button className="btn" onClick={login} type="button">
             Admin Login
           </button>

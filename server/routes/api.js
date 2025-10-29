@@ -15,7 +15,7 @@ const bad = (res, message, code = 400) => res.status(code).json({ status: 'error
 
 export default function registerApiRoutes(app) {
     // Proxy IPFS file via webhook with server-side secret
-    app.get('/api/ipfs/:cid', async (req, res) => {
+    app.get('/api/ipfs/:cid', requireAdmin, async (req, res) => {
         try {
             const cid = String(req.params.cid || '');
             if (!/Qm[1-9A-Za-z]{44}/.test(cid)) {
@@ -178,7 +178,7 @@ export default function registerApiRoutes(app) {
     });
 
     // Upload an image as public Chainletter file under RWA Files (public) or private if requested
-    app.post('/api/upload-image', (req, res) => {
+    app.post('/api/upload-image', requireAdmin, (req, res) => {
         upload.single('image')(req, res, async (err) => {
             if (err) {
                 const message = err.code === 'LIMIT_FILE_SIZE' ? 'Image must be 2MB or smaller' : err.message || 'Invalid image upload';
@@ -397,7 +397,7 @@ export default function registerApiRoutes(app) {
     });
 
     // Audit log: dump all serial numbers, public registrations, and contests as a JSON file
-    app.get('/api/audit', async (req, res) => {
+    app.get('/api/audit', requireAdmin, async (req, res) => {
         try {
             const db = await getDb();
             const serials = await db.all(`
