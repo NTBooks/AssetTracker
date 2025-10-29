@@ -8,7 +8,7 @@ import multer from 'multer';
 import { createCheckoutSession } from '../lib/stripe.js';
 import { customAlphabet } from 'nanoid';
 import { Readable } from 'stream';
-import { requireAdmin } from '../lib/workos.js';
+import { requireAdmin, getUserFromRequest } from '../lib/workos.js';
 
 const ok = (res, message, data) => res.status(200).json({ status: 'ok', message, data });
 const bad = (res, message, code = 400) => res.status(code).json({ status: 'error', message });
@@ -77,8 +77,13 @@ export default function registerApiRoutes(app) {
     });
     // Public config for client
     app.get('/api/config', (req, res) => {
+        const reasons = String(process.env.CONTEST_REASONS || 'lost,stolen,fraud,other')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
         return ok(res, 'Config', {
             singleSku: process.env.SINGLE_SKU || null,
+            contestReasons: reasons,
         });
     });
 
@@ -124,7 +129,7 @@ export default function registerApiRoutes(app) {
 
             // Prepare Chainletter artifacts first so we only write DB on success
             const secret = await generateSecret();
-            const certSvg = generatePublicCertificateSvg({ sku, serial, itemName, itemDescription });
+            const certSvg = generatePublicCertificateSvg({ sku, serial, itemName, itemDescription, ownerName: '' });
             const saleSvg = generatePrivateSaleSvg({ sku, serial, ownerName: '', nextSecret: secret });
             // Per-network stamp control: default true for single creates; bulk sets last item per network
             const body = req.body || {};
@@ -228,7 +233,7 @@ export default function registerApiRoutes(app) {
 
             // Registration now only stamps the public certificate.
             // Transfers that create the next private sale doc are done via /api/transfer.
-            const publicSvg = generatePublicCertificateSvg({ sku, serial, itemName: serialRow.item_name, itemDescription: serialRow.item_description });
+            const publicSvg = generatePublicCertificateSvg({ sku, serial, itemName: serialRow.item_name, itemDescription: serialRow.item_description, ownerName });
             let publicUpload;
             try {
                 // Public registration is the only/last public upload in this series → stamp now for public
@@ -266,8 +271,10 @@ export default function registerApiRoutes(app) {
                 firstSaleFilename = `sale-${sku}-${serial}.svg`;
             }
 
-            // Persist the registration referencing the used unlock
-            const reg = await db.run('INSERT INTO registrations (serial_id, owner_name, public_file_url, private_file_url, unlock_id) VALUES (?, ?, ?, ?, ?)', [serialRow.id, ownerName, publicUpload.url, null, lastUnlock.id]);
+            // Persist the registration referencing the used unlock; attach owner_email if available
+            let ownerEmail = null;
+            try { ownerEmail = (await getUserFromRequest(req))?.email || null; } catch { }
+            const reg = await db.run('INSERT INTO registrations (serial_id, owner_name, owner_email, public_file_url, private_file_url, unlock_id) VALUES (?, ?, ?, ?, ?, ?)', [serialRow.id, ownerName, ownerEmail, publicUpload.url, null, lastUnlock.id]);
 
             return ok(res, 'Registered', {
                 registrationId: reg.lastID,
@@ -320,6 +327,15 @@ export default function registerApiRoutes(app) {
             // Attach the sale doc to the existing active unlock and mark as pending
             await db.run('UPDATE unlocks SET private_cid=? WHERE id=?', [saleUpload.cid ?? null, lastUnlock.id]);
             await db.run('UPDATE serial_numbers SET pending_unlock_id=? WHERE id=?', [lastUnlock.id, serialRow.id]);
+
+            // Attach email to latest registration if missing and user is logged in
+            const latestReg = await db.get('SELECT id, owner_email FROM registrations WHERE serial_id=? ORDER BY id DESC LIMIT 1', [serialRow.id]);
+            if (latestReg && !latestReg.owner_email) {
+                const u = await getUserFromRequest(req);
+                if (u?.email) {
+                    await db.run('UPDATE registrations SET owner_email=? WHERE id=?', [u.email, latestReg.id]);
+                }
+            }
 
             return ok(res, 'Transfer created', {
                 privateUrl: `/api/ipfs/${saleUpload.cid}?filename=${encodeURIComponent(`sale-${sku}-${serial}.svg`)}`,
@@ -396,20 +412,32 @@ export default function registerApiRoutes(app) {
             const registrationId = Number(req.body?.registrationId);
             const secret = sanitize(req.body?.secret);
             const reasonRaw = String(sanitize(req.body?.reason || 'other')).toLowerCase();
-            const allowedReasons = new Set(['lost', 'stolen', 'fraud', 'other']);
+            const allowedReasons = new Set(
+                String(process.env.CONTEST_REASONS || 'lost,stolen,fraud,other')
+                    .toLowerCase()
+                    .split(',')
+                    .map(s => s.trim())
+                    .filter(Boolean)
+            );
             if (!allowedReasons.has(reasonRaw)) {
                 return bad(res, 'Invalid reason');
             }
             const reason = reasonRaw;
             if (!registrationId || !secret) return bad(res, 'Missing fields');
             const db = await getDb();
-            const reg = await db.get('SELECT id, serial_id FROM registrations WHERE id=?', [registrationId]);
+            const reg = await db.get('SELECT id, serial_id, owner_email FROM registrations WHERE id=?', [registrationId]);
             if (!reg) return bad(res, 'Registration not found', 404);
             // Validate against newest active key for this serial (current owner's key)
             const activeUnlock = await db.get('SELECT id, secret_hash FROM unlocks WHERE serial_id=? AND COALESCE(revoked,0)=0 ORDER BY id DESC LIMIT 1', [reg.serial_id]);
             if (!activeUnlock) return bad(res, 'No active key for this registration', 403);
             const okKey = await verifySecret(secret, activeUnlock.secret_hash);
             if (!okKey) return bad(res, 'Invalid key', 403);
+            if (!reg.owner_email) {
+                const u = await getUserFromRequest(req);
+                if (u?.email) {
+                    await db.run('UPDATE registrations SET owner_email=? WHERE id=?', [u.email, reg.id]);
+                }
+            }
             await db.run('UPDATE registrations SET contested=1, contest_reason=? WHERE id=?', [reason, registrationId]);
             return ok(res, 'Contested');
         } catch (e) {
@@ -429,13 +457,21 @@ export default function registerApiRoutes(app) {
             if (!registrationId || !sku || !serial || !phrase || !secret) return bad(res, 'Missing fields');
 
             const db = await getDb();
-            const reg = await db.get('SELECT id, owner_name, unlock_id, created_at, serial_id FROM registrations WHERE id=?', [registrationId]);
+            const reg = await db.get('SELECT id, owner_name, unlock_id, owner_email, created_at, serial_id FROM registrations WHERE id=?', [registrationId]);
             if (!reg) return bad(res, 'Registration not found', 404);
             // Use the newest active (non-revoked) unlock for this serial – current owner's key
             const activeUnlock = await db.get('SELECT id, secret_hash FROM unlocks WHERE serial_id=? AND COALESCE(revoked,0)=0 ORDER BY id DESC LIMIT 1', [reg.serial_id]);
             if (!activeUnlock) return bad(res, 'No active key for this registration', 403);
             const okKey = await verifySecret(secret, activeUnlock.secret_hash);
             if (!okKey) return bad(res, 'Invalid key', 403);
+
+            // Attach current user's email to registration if not set
+            if (!reg.owner_email) {
+                const u = await getUserFromRequest(req);
+                if (u?.email) {
+                    await db.run('UPDATE registrations SET owner_email=? WHERE id=?', [u.email, reg.id]);
+                }
+            }
 
             // Build full registration chain (oldest to newest)
             const regs = await db.all('SELECT id, owner_name, created_at FROM registrations WHERE serial_id=? ORDER BY id ASC', [reg.serial_id]);

@@ -53,6 +53,7 @@ export async function initDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       serial_id INTEGER NOT NULL,
       owner_name TEXT NOT NULL,
+      owner_email TEXT,
       public_file_url TEXT,
       private_file_url TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -72,6 +73,7 @@ export async function initDb() {
   try { await dbInstance.exec(`ALTER TABLE unlocks ADD COLUMN revoked INTEGER DEFAULT 0`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE unlocks ADD COLUMN revoked_at DATETIME`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE registrations ADD COLUMN contest_reason TEXT`); } catch { }
+  try { await dbInstance.exec(`ALTER TABLE registrations ADD COLUMN owner_email TEXT`); } catch { }
 
   return dbInstance;
 }

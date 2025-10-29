@@ -17,9 +17,15 @@ function escapeXml(value) {
 
 function tryRenderTemplate(templateName, data) {
   try {
-    const templatePath = path.join(__dirname, '..', 'templates', `${templateName}.svg`);
-    if (!fs.existsSync(templatePath)) return null;
-    let svg = fs.readFileSync(templatePath, 'utf8');
+    // Support either .svg or .xml template filenames
+    const baseDir = path.join(__dirname, '..', 'templates');
+    const candidatePaths = [
+      path.join(baseDir, `${templateName}.svg`),
+      path.join(baseDir, `${templateName}.xml`),
+    ];
+    const existingPath = candidatePaths.find((p) => fs.existsSync(p));
+    if (!existingPath) return null;
+    let svg = fs.readFileSync(existingPath, 'utf8');
     for (const [k, v] of Object.entries(data || {})) {
       const token = new RegExp(`##${k}##`, 'gi');
       svg = svg.replace(token, escapeXml(v));
@@ -49,15 +55,50 @@ function svgWrapper(inner, title = 'Certificate') {
 </svg>`;
 }
 
-export function generatePublicCertificateSvg({ sku, serial, itemName, itemDescription }) {
+function wrapTextAt(text, max = 30) {
+  if (!text) return '';
+  const lines = [];
+  const rawLines = String(text).split(/\r?\n/);
+  for (const raw of rawLines) {
+    const words = raw.split(/\s+/);
+    let line = '';
+    for (const w of words) {
+      if (!w) continue;
+      const candidate = line ? `${line} ${w}` : w;
+      if (candidate.length <= max) {
+        line = candidate;
+      } else {
+        if (line) lines.push(line);
+        // extremely long word fallback
+        if (w.length > max) {
+          for (let i = 0; i < w.length; i += max) {
+            lines.push(w.slice(i, i + max));
+          }
+          line = '';
+        } else {
+          line = w;
+        }
+      }
+    }
+    if (line) lines.push(line);
+  }
+  return lines.join('\n');
+}
+
+export function generatePublicCertificateSvg({ sku, serial, itemName, itemDescription, ownerName }) {
+  const dateIssuedShort = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'numeric', day: 'numeric' });
+  const descWrapped = wrapTextAt(itemDescription ?? '', 30);
   const rendered = tryRenderTemplate('certificate', {
     META: '',
     SKU: sku,
     SERIAL: serial,
     ITEM_NAME: itemName ?? '',
-    ITEM_DESC: itemDescription ?? '',
-    ITEM_DESCRIPTION: itemDescription ?? '',
-    DESCRIPTION: itemDescription ?? ''
+    ITEM_DESC: descWrapped,
+    ITEM_DESCRIPTION: descWrapped,
+    DESCRIPTION: descWrapped,
+    VERIFY_URL: process.env.WORK_OS_HOST || '',
+    DATE_ISSUED: dateIssuedShort,
+    OWNER_NAME: ownerName ?? ''
   });
   if (rendered) return rendered;
   const inner = `
@@ -72,6 +113,12 @@ export function generatePublicCertificateSvg({ sku, serial, itemName, itemDescri
     <foreignObject x="160" y="95" width="680" height="200">
       <div xmlns="http://www.w3.org/1999/xhtml" style="font:16px sans-serif;color:#111827;white-space:pre-wrap">${(itemDescription ?? '').slice(0, 800)}</div>
     </foreignObject>
+    <text class="label" x="0" y="320">Owner</text>
+    <text class="value" x="160" y="320">${ownerName ?? ''}</text>
+    <text class="label" x="0" y="360">Issued</text>
+    <text class="value" x="160" y="360">${dateIssuedShort}</text>
+    <text class="label" x="0" y="400">Verify</text>
+    <text class="value" x="160" y="400">${process.env.WORK_OS_HOST || ''}</text>
     <rect class="badge" x="0" y="320" width="360" height="50" rx="8"/>
     <text class="note" x="16" y="352">Public Registration Certificate</text>
   </g>`;
@@ -79,13 +126,18 @@ export function generatePublicCertificateSvg({ sku, serial, itemName, itemDescri
 }
 
 export function generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret }) {
-  const meta = `<!--META:${JSON.stringify({ sku, serial })}-->`;
+  // Build safe META content for XML comments: comments cannot include "--"
+  const metaContent = JSON.stringify({ sku, serial }).replace(/--/g, '- -');
+  const dateIssuedShort = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'numeric', day: 'numeric' });
   const rendered = tryRenderTemplate('private_sale', {
-    META: meta,
+    // Template already wraps with <!--META:##META##--> so pass only content
+    META: metaContent,
     SKU: sku,
     SERIAL: serial,
     OWNER_NAME: ownerName,
-    NEXT_SECRET: nextSecret
+    NEXT_SECRET: nextSecret,
+    VERIFY_URL: process.env.WORK_OS_HOST || '',
+    DATE_ISSUED: dateIssuedShort
   });
   if (rendered) return rendered;
   const inner = `
@@ -98,13 +150,18 @@ export function generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret }) {
     <text class="value" x="160" y="80">${ownerName}</text>
     <text class="label" x="0" y="130">Registration Secret For Next Transfer</text>
     <text class="value" x="160" y="130">${nextSecret}</text>
-    <foreignObject x="0" y="180" width="820" height="280">
+    <foreignObject x="0" y="180" width="820" height="240">
       <div xmlns="http://www.w3.org/1999/xhtml" style="font:16px sans-serif;color:#111827;white-space:pre-wrap">
         Keep this SVG private. To register ownership, visit the Verify page and use SKU/Serial, then the Register Asset form with the Registration Secret above. After registering, you will receive a new private sale document for the next transfer.
       </div>
     </foreignObject>
+    <text class="label" x="0" y="460">Issued</text>
+    <text class="value" x="160" y="460">${dateIssuedShort}</text>
+    <text class="label" x="0" y="500">Register</text>
+    <text class="value" x="160" y="500">${process.env.WORK_OS_HOST || ''}</text>
   </g>`;
-  return meta + svgWrapper(inner, 'Private Sale Document');
+  const metaComment = `<!--META:${metaContent}-->`;
+  return metaComment + svgWrapper(inner, 'Private Sale Document');
 }
 
 export function generateNextSecretSvg({ sku, serial, nextSecret }) {

@@ -21,7 +21,7 @@ import { addRecentItem } from "../lib/recent";
 
 export default function Verify() {
   const location = useLocation();
-  const { singleSku } = useConfig();
+  const { singleSku, contestReasons } = useConfig();
   const [sku, setSku] = useState("");
   const [serial, setSerial] = useState("");
   const [data, setData] = useState<any>(null);
@@ -144,7 +144,7 @@ export default function Verify() {
       open: true,
       registrationId,
       secret: "",
-      reason: "other",
+      reason: (contestReasons && contestReasons[0]) || "other",
       loading: false,
       error: undefined,
     });
@@ -530,10 +530,14 @@ export default function Verify() {
               onChange={(e) =>
                 setContestModal((m) => ({ ...m, reason: e.target.value }))
               }>
-              <option value="lost">lost</option>
-              <option value="stolen">stolen</option>
-              <option value="fraud">fraud</option>
-              <option value="other">other</option>
+              {(contestReasons && contestReasons.length > 0
+                ? contestReasons
+                : ["lost", "stolen", "fraud", "other"]
+              ).map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
             </select>
             <div className="flex justify-end gap-2">
               <button

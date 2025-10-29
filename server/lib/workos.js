@@ -173,3 +173,19 @@ export async function requireAdmin(req, res, next) {
         return res.status(500).json({ status: 'error', message: 'Auth error' });
     }
 }
+
+export async function getUserFromRequest(req) {
+    try {
+        const workos = req.app?.workos;
+        if (!workos) return null;
+        const session = workos.userManagement.loadSealedSession({
+            sessionData: req.cookies['wos-session'],
+            cookiePassword: process.env.WORKOS_COOKIE_PASSWORD,
+        });
+        const { authenticated, user } = await session.authenticate();
+        if (!authenticated || !user || !user.email) return null;
+        return { email: user.email };
+    } catch {
+        return null;
+    }
+}

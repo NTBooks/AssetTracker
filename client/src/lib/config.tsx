@@ -9,6 +9,7 @@ import React, {
 type AppConfig = {
   loading: boolean;
   singleSku: string | null;
+  contestReasons: string[];
 };
 
 const ConfigContext = createContext<AppConfig | undefined>(undefined);
@@ -16,6 +17,7 @@ const ConfigContext = createContext<AppConfig | undefined>(undefined);
 export function ConfigProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [singleSku, setSingleSku] = useState<string | null>(null);
+  const [contestReasons, setContestReasons] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,6 +26,12 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
       .then((json) => {
         if (cancelled) return;
         setSingleSku(json?.data?.singleSku || null);
+        const reasons = Array.isArray(json?.data?.contestReasons)
+          ? json.data.contestReasons.filter(
+              (s: any) => typeof s === "string" && s.trim().length > 0
+            )
+          : [];
+        setContestReasons(reasons);
       })
       .catch(() => {})
       .finally(() => {
@@ -34,7 +42,10 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const value = useMemo(() => ({ loading, singleSku }), [loading, singleSku]);
+  const value = useMemo(
+    () => ({ loading, singleSku, contestReasons }),
+    [loading, singleSku, contestReasons]
+  );
   return (
     <ConfigContext.Provider value={value}>{children}</ConfigContext.Provider>
   );
