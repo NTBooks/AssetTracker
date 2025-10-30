@@ -325,7 +325,9 @@ export default function Verify() {
           <div className="grid md:grid-cols-2 gap-4">
             {data?.serial?.photo_url ? (
               <div className="card p-4">
-                <h3 className="mb-2 text-lg font-semibold text-slate-800">Item</h3>
+                <h3 className="mb-2 text-lg font-semibold text-slate-800">
+                  Item
+                </h3>
                 {!thumbReady ? (
                   <div>
                     <div className="mb-3 h-40 w-full animate-pulse rounded bg-slate-200" />
@@ -382,7 +384,9 @@ export default function Verify() {
             ) : null}
             {data?.serial?.public_cid ? (
               <div className="card p-4">
-                <h3 className="mb-2 text-lg font-semibold text-slate-800">Original Certificate</h3>
+                <h3 className="mb-2 text-lg font-semibold text-slate-800">
+                  Original Certificate
+                </h3>
                 <ClvLink
                   cid={data.serial.public_cid}
                   className="inline-block"
@@ -441,7 +445,9 @@ export default function Verify() {
 
             {(data.registrations ?? []).length > 0 ? (
               <div className="card p-4">
-                <h3 className="mb-2 text-lg font-semibold text-slate-800">Registrations</h3>
+                <h3 className="mb-2 text-lg font-semibold text-slate-800">
+                  Registrations
+                </h3>
                 <p className="mb-3 text-sm text-slate-500">
                   Note: You can only create proofs or report issues for
                   registrations you control, and you will need the original
@@ -475,7 +481,9 @@ export default function Verify() {
                           </div>
                         )}
                         {r.contested ? (
-                          <span className="ml-2 text-sm text-red-500">Contested</span>
+                          <span className="ml-2 text-sm text-red-500">
+                            Contested
+                          </span>
                         ) : null}
                       </div>
                       <div className="flex items-center gap-2">
@@ -517,9 +525,13 @@ export default function Verify() {
       {contestModal.open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur">
           <div className="card w-full max-w-lg p-6">
-            <h3 className="mb-3 text-lg font-semibold text-slate-800">Contest Registration</h3>
+            <h3 className="mb-3 text-lg font-semibold text-slate-800">
+              Contest Registration
+            </h3>
             {contestModal.error ? (
-              <div className="mb-3 text-sm text-red-500">{contestModal.error}</div>
+              <div className="mb-3 text-sm text-red-500">
+                {contestModal.error}
+              </div>
             ) : null}
             <label className={labelClass}>Registration Secret</label>
             <input
@@ -594,9 +606,13 @@ export default function Verify() {
       {proofModal.open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur">
           <div className="card w-full max-w-lg p-6">
-            <h3 className="mb-3 text-lg font-semibold text-slate-800">Create Proof</h3>
+            <h3 className="mb-3 text-lg font-semibold text-slate-800">
+              Create Proof
+            </h3>
             {proofModal.error ? (
-              <div className="mb-3 text-sm text-red-500">{proofModal.error}</div>
+              <div className="mb-3 text-sm text-red-500">
+                {proofModal.error}
+              </div>
             ) : null}
             <label className={labelClass}>Registration Secret</label>
             <input
@@ -693,7 +709,9 @@ export default function Verify() {
               Create Transfer Document
             </h3>
             {transferModal.error ? (
-              <div className="mb-3 text-sm text-red-500">{transferModal.error}</div>
+              <div className="mb-3 text-sm text-red-500">
+                {transferModal.error}
+              </div>
             ) : null}
             <label className={labelClass}>Registration Secret</label>
             <input
@@ -778,9 +796,13 @@ export default function Verify() {
       {revokeModal.open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur">
           <div className="card w-full max-w-lg p-6">
-            <h3 className="mb-3 text-lg font-semibold text-slate-800">Revoke Transfer</h3>
+            <h3 className="mb-3 text-lg font-semibold text-slate-800">
+              Revoke Transfer
+            </h3>
             {revokeModal.error ? (
-              <div className="mb-3 text-sm text-red-500">{revokeModal.error}</div>
+              <div className="mb-3 text-sm text-red-500">
+                {revokeModal.error}
+              </div>
             ) : null}
             <label className={labelClass}>Registration Secret</label>
             <input
@@ -846,7 +868,9 @@ function ItemMeta({
   return (
     <div className="flex-1 min-w-0">
       {name ? (
-        <div className="mb-1 break-words font-semibold text-slate-800">{name}</div>
+        <div className="mb-1 break-words font-semibold text-slate-800">
+          {name}
+        </div>
       ) : null}
       {description ? (
         <div className="whitespace-pre-wrap break-words text-sm text-slate-600">
@@ -929,7 +953,7 @@ function FadeImg({
 
 function CidThumb({
   cid,
-  size = 300,
+  size: _size = 300,
   className,
 }: {
   cid: string;
@@ -944,7 +968,7 @@ function CidThumb({
     "https://ipfs.io/ipfs/:cid",
   ];
   const base = (gateways[idx] || gateways[0]).replace(":cid", cid);
-  const src = `${base}${base.includes("?") ? "&" : "?"}img-width=${size}`;
+  const src = base;
   return (
     <img
       src={src}

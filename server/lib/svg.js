@@ -36,6 +36,11 @@ function tryRenderTemplate(templateName, data) {
   }
 }
 
+function sanitizeMetaContent(text) {
+  if (!text) return '';
+  return String(text).replace(/--/g, '- -');
+}
+
 function svgWrapper(inner, title = 'Certificate') {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="600">
@@ -85,11 +90,12 @@ function wrapTextAt(text, max = 30) {
   return lines.join('\n');
 }
 
-export function generatePublicCertificateSvg({ sku, serial, itemName, itemDescription, ownerName }) {
+export function generatePublicCertificateSvg({ sku, serial, itemName, itemDescription, ownerName, historyText = '' }) {
   const dateIssuedShort = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'numeric', day: 'numeric' });
   const descWrapped = wrapTextAt(itemDescription ?? '', 30);
+  const metaContent = sanitizeMetaContent(historyText);
   const rendered = tryRenderTemplate('certificate', {
-    META: '',
+    META: metaContent,
     SKU: sku,
     SERIAL: serial,
     ITEM_NAME: itemName ?? '',
@@ -101,6 +107,7 @@ export function generatePublicCertificateSvg({ sku, serial, itemName, itemDescri
     OWNER_NAME: ownerName ?? ''
   });
   if (rendered) return rendered;
+  const metaComment = metaContent ? `<!--META:${metaContent}-->` : '';
   const inner = `
   <g transform="translate(50,110)">
     <text class="label" x="0" y="0">SKU</text>
@@ -122,12 +129,12 @@ export function generatePublicCertificateSvg({ sku, serial, itemName, itemDescri
     <rect class="badge" x="0" y="320" width="360" height="50" rx="8"/>
     <text class="note" x="16" y="352">Public Registration Certificate</text>
   </g>`;
-  return svgWrapper(inner, 'Blockchain Certificate of Registration');
+  return metaComment + svgWrapper(inner, 'Blockchain Certificate of Registration');
 }
 
-export function generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret }) {
-  // Build safe META content for XML comments: comments cannot include "--"
-  const metaContent = JSON.stringify({ sku, serial }).replace(/--/g, '- -');
+export function generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret, historyText = '' }) {
+  const metaSource = historyText || JSON.stringify({ sku, serial });
+  const metaContent = sanitizeMetaContent(metaSource);
   const dateIssuedShort = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'numeric', day: 'numeric' });
   const rendered = tryRenderTemplate('private_sale', {
     // Template already wraps with <!--META:##META##--> so pass only content
@@ -140,6 +147,7 @@ export function generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret }) {
     DATE_ISSUED: dateIssuedShort
   });
   if (rendered) return rendered;
+  const metaComment = metaContent ? `<!--META:${metaContent}-->` : '';
   const inner = `
   <g transform="translate(50,110)">
     <text class="label" x="0" y="0">SKU</text>
@@ -160,7 +168,6 @@ export function generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret }) {
     <text class="label" x="0" y="500">Register</text>
     <text class="value" x="160" y="500">${process.env.WORK_OS_HOST || ''}</text>
   </g>`;
-  const metaComment = `<!--META:${metaContent}-->`;
   return metaComment + svgWrapper(inner, 'Private Sale Document');
 }
 
@@ -185,12 +192,13 @@ export function generateNextSecretSvg({ sku, serial, nextSecret }) {
 }
 
 export function extractMetaFromSvg(svgString) {
-  const match = svgString.match(/<!--META:(.*?)-->/);
+  const match = svgString.match(/<!--META:([\s\S]*?)-->/);
   if (!match) return null;
+  const raw = match[1];
   try {
-    return JSON.parse(match[1]);
+    return JSON.parse(raw);
   } catch {
-    return null;
+    return raw;
   }
 }
 

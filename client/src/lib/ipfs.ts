@@ -9,26 +9,22 @@ export function resolveIpfsCidToHttp(cid: string): string | null {
 
 export function resolveIpfsThumb(
   cid: string,
-  size: number = 300
+  _size: number = 300
 ): string | null {
   const base = resolveIpfsCidToHttp(cid);
   if (!base) return null;
-  const sep = base.includes("?") ? "&" : "?";
-  return `${base}${sep}img-width=${size}`;
+  return base;
 }
 
 export function toThumbFromUrlOrCid(
   urlOrCid?: string | null,
-  size: number = 300
+  _size: number = 300
 ): string | null {
   if (!urlOrCid) return null;
-  // If already an http(s) URL, just append width param
   if (/^https?:\/\//i.test(urlOrCid)) {
-    const sep = urlOrCid.includes("?") ? "&" : "?";
-    return `${urlOrCid}${sep}img-width=${size}`;
+    return urlOrCid;
   }
-  // Otherwise treat as CID
-  return resolveIpfsThumb(urlOrCid, size);
+  return resolveIpfsThumb(urlOrCid, _size);
 }
 
 export function extractCidFromUrlOrString(

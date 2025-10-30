@@ -2,6 +2,7 @@ import { getDb } from '../lib/db.js';
 import axios from 'axios';
 import { generateSecret, hashSecret, verifySecret } from '../lib/crypto.js';
 import { generatePublicCertificateSvg, generatePrivateSaleSvg, generateNextSecretSvg } from '../lib/svg.js';
+import { buildRegistrationHistoryText } from '../lib/history.js';
 import { uploadPublicSvg, uploadPrivateSvg, uploadArbitraryFile, getWebhookCredits } from '../lib/chainletter.js';
 import { extractCid, resolveIpfsCidToHttp } from '../lib/ipfs.js';
 import multer from 'multer';
@@ -129,8 +130,9 @@ export default function registerApiRoutes(app) {
 
             // Prepare Chainletter artifacts first so we only write DB on success
             const secret = await generateSecret();
-            const certSvg = generatePublicCertificateSvg({ sku, serial, itemName, itemDescription, ownerName: '' });
-            const saleSvg = generatePrivateSaleSvg({ sku, serial, ownerName: '', nextSecret: secret });
+            const historyText = buildRegistrationHistoryText({ sku, serial, registrations: [], phrase: 'N/A' });
+            const certSvg = generatePublicCertificateSvg({ sku, serial, itemName, itemDescription, ownerName: '', historyText });
+            const saleSvg = generatePrivateSaleSvg({ sku, serial, ownerName: '', nextSecret: secret, historyText });
             // Per-network stamp control: default true for single creates; bulk sets last item per network
             const body = req.body || {};
             const stampNowLegacy = typeof body.stampNow !== 'undefined' ? Boolean(body.stampNow) : undefined;
@@ -233,51 +235,72 @@ export default function registerApiRoutes(app) {
 
             // Registration now only stamps the public certificate.
             // Transfers that create the next private sale doc are done via /api/transfer.
-            const publicSvg = generatePublicCertificateSvg({ sku, serial, itemName: serialRow.item_name, itemDescription: serialRow.item_description, ownerName });
-            let publicUpload;
-            try {
-                // Public registration is the only/last public upload in this series → stamp now for public
-                publicUpload = await uploadPublicSvg(`registration-${sku}-${serial}-${Date.now()}.svg`, publicSvg, 'RWA Files (public)', { stampImmediately: true });
-            } catch (e) {
-                const statusCode = e?.response?.status || 502;
-                const msg = e?.response?.data?.message || e?.message || 'Chainletter error';
-                return res.status(statusCode).json({ status: 'error', message: `Chainletter upload failed: ${msg}` });
-            }
-            if (!publicUpload?.url) {
-                return bad(res, 'Chainletter upload failed or not configured', 503);
-            }
+            const existingRegs = await db.all('SELECT id, owner_name, created_at FROM registrations WHERE serial_id=? ORDER BY id ASC', [serialRow.id]);
+            const isFirst = existingRegs.length === 0;
 
-            // Determine if this is the first registration for this serial
-            const countRow = await db.get('SELECT COUNT(1) as c FROM registrations WHERE serial_id=?', [serialRow.id]);
-            const isFirst = Number(countRow?.c || 0) === 0;
-
-            // Revoke the secret that was used so it cannot be reused
-            await db.run('UPDATE unlocks SET revoked=1, revoked_at=CURRENT_TIMESTAMP WHERE id=?', [lastUnlock.id]);
-            // Clear pending if this unlock was a pending transfer
-            await db.run('UPDATE serial_numbers SET pending_unlock_id=NULL WHERE id=? AND pending_unlock_id=?', [serialRow.id, lastUnlock.id]);
-
-            // Always issue a brand new next secret for the new owner, but do not start a transfer yet.
-            // The sale document is created only when the owner explicitly initiates Transfer.
-            const nextSecret = await generateSecret();
-            const { hash, salt } = await hashSecret(nextSecret);
-            await db.run('INSERT INTO unlocks (serial_id, secret_hash, salt, private_cid) VALUES (?, ?, ?, ?)', [serialRow.id, hash, salt, null]);
-
-            // For first registration, also return a ready-to-download private sale SVG
-            // (not uploaded to Chainletter, no pending transfer yet)
-            let firstSaleSvg = null;
-            let firstSaleFilename = null;
-            if (isFirst) {
-                firstSaleSvg = generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret });
-                firstSaleFilename = `sale-${sku}-${serial}.svg`;
-            }
-
-            // Persist the registration referencing the used unlock; attach owner_email if available
             let ownerEmail = null;
             try { ownerEmail = (await getUserFromRequest(req))?.email || null; } catch { }
-            const reg = await db.run('INSERT INTO registrations (serial_id, owner_name, owner_email, public_file_url, private_file_url, unlock_id) VALUES (?, ?, ?, ?, ?, ?)', [serialRow.id, ownerName, ownerEmail, publicUpload.url, null, lastUnlock.id]);
+
+            let nextSecret;
+            let historyText;
+            let publicUpload;
+            let registrationId;
+            let firstSaleSvg = null;
+            let firstSaleFilename = null;
+            let committed = false;
+
+            await db.run('BEGIN');
+            try {
+                // Revoke the secret that was used so it cannot be reused
+                await db.run('UPDATE unlocks SET revoked=1, revoked_at=CURRENT_TIMESTAMP WHERE id=?', [lastUnlock.id]);
+                // Clear pending if this unlock was a pending transfer
+                await db.run('UPDATE serial_numbers SET pending_unlock_id=NULL WHERE id=? AND pending_unlock_id=?', [serialRow.id, lastUnlock.id]);
+
+                // Always issue a brand new next secret for the new owner, but do not start a transfer yet.
+                nextSecret = await generateSecret();
+                const { hash, salt } = await hashSecret(nextSecret);
+                await db.run('INSERT INTO unlocks (serial_id, secret_hash, salt, private_cid) VALUES (?, ?, ?, ?)', [serialRow.id, hash, salt, null]);
+
+                // Insert the registration now (public file URL updated after successful upload)
+                const regInsert = await db.run('INSERT INTO registrations (serial_id, owner_name, owner_email, public_file_url, private_file_url, unlock_id) VALUES (?, ?, ?, ?, ?, ?)', [serialRow.id, ownerName, ownerEmail, null, null, lastUnlock.id]);
+                registrationId = regInsert.lastID;
+
+                const registrations = await db.all('SELECT id, owner_name, created_at FROM registrations WHERE serial_id=? ORDER BY id ASC', [serialRow.id]);
+                historyText = buildRegistrationHistoryText({ sku, serial, registrations, focusedRegistrationId: registrationId, phrase: 'N/A' });
+
+                const publicSvg = generatePublicCertificateSvg({ sku, serial, itemName: serialRow.item_name, itemDescription: serialRow.item_description, ownerName, historyText });
+                // Public registration is the only/last public upload in this series → stamp now for public
+                publicUpload = await uploadPublicSvg(`registration-${sku}-${serial}-${Date.now()}.svg`, publicSvg, 'RWA Files (public)', { stampImmediately: true });
+                if (!publicUpload?.url) {
+                    throw new Error('Chainletter upload failed or not configured');
+                }
+
+                await db.run('UPDATE registrations SET public_file_url=? WHERE id=?', [publicUpload.url, registrationId]);
+
+                if (isFirst) {
+                    firstSaleSvg = generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret, historyText });
+                    firstSaleFilename = `sale-${sku}-${serial}.svg`;
+                }
+
+                await db.run('COMMIT');
+                committed = true;
+            } catch (err) {
+                if (!committed) {
+                    try { await db.run('ROLLBACK'); } catch { }
+                }
+                if (err?.response) {
+                    const statusCode = err?.response?.status || 502;
+                    const msg = err?.response?.data?.message || err?.message || 'Chainletter error';
+                    return res.status(statusCode).json({ status: 'error', message: `Chainletter upload failed: ${msg}` });
+                }
+                if (err?.message === 'Chainletter upload failed or not configured') {
+                    return res.status(503).json({ status: 'error', message: err.message });
+                }
+                throw err;
+            }
 
             return ok(res, 'Registered', {
-                registrationId: reg.lastID,
+                registrationId,
                 publicUrl: publicUpload.url,
                 nextSecret,
                 ...(isFirst ? { filename: firstSaleFilename, svg: firstSaleSvg } : {})
@@ -314,7 +337,10 @@ export default function registerApiRoutes(app) {
             if (!okKey) return bad(res, 'Invalid key', 403);
 
             // Upload private sale doc using the current owner's active secret provided here
-            const saleSvg = generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret: secret });
+            const registrations = await db.all('SELECT id, owner_name, created_at FROM registrations WHERE serial_id=? ORDER BY id ASC', [serialRow.id]);
+            const focusId = registrations.length ? registrations[registrations.length - 1].id : null;
+            const historyText = buildRegistrationHistoryText({ sku, serial, registrations, focusedRegistrationId: focusId, phrase: 'N/A' });
+            const saleSvg = generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret: secret, historyText });
             let saleUpload;
             try {
                 saleUpload = await uploadPrivateSvg(`sale-${sku}-${serial}.svg`, saleSvg, 'RWA Files (private)', { stampImmediately: true });
@@ -475,15 +501,7 @@ export default function registerApiRoutes(app) {
 
             // Build full registration chain (oldest to newest)
             const regs = await db.all('SELECT id, owner_name, created_at FROM registrations WHERE serial_id=? ORDER BY id ASC', [reg.serial_id]);
-            const nowIso = new Date().toISOString();
-            let chain = 'Registration Chain (oldest → newest)\n';
-            regs.forEach((r, idx) => {
-                const marker = Number(r.id) === Number(registrationId) ? '-> ' : '   ';
-                chain += `${marker}[${idx + 1}] Owner: ${r.owner_name} • Created At: ${r.created_at} (UTC)\n`;
-            });
-            const disclaimer = `\nNote: This proof reflects data as of ${nowIso} (UTC). If any transfer or change is being considered, generate a fresh proof to ensure the most current state is captured.\n`;
-            const header = `Proof of Registration\nSKU: ${sku}\nSerial: ${serial}\nFocused Registration ID: ${registrationId}\nPhrase: ${phrase}\n`;
-            const content = `${header}\n${chain}${disclaimer}`;
+            const content = buildRegistrationHistoryText({ sku, serial, registrations: regs, focusedRegistrationId: registrationId, phrase });
             const buffer = Buffer.from(content, 'utf8');
             const filename = `proof-${sku}-${serial}-${Date.now()}.txt`;
             const uploaded = await uploadArbitraryFile({ buffer, filename, contentType: 'text/plain', visibility: 'public', groupName: 'RWA Files (public)', stampImmediately: true });

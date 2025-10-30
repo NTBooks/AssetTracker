@@ -57,7 +57,7 @@ export default function CreateItem() {
     setItemName(`Mock Item ${n}`);
     setItemDescription(`Autumn-themed mock description ${n}`);
     setPhotoUrl(
-      `https://chainletter.mypinata.cloud/ipfs/QmewjNfWbA1avfLhnKfW5ArUwREjKBAkzVnXnd5utSy5XX?img-width=300`
+      `https://chainletter.mypinata.cloud/ipfs/QmewjNfWbA1avfLhnKfW5ArUwREjKBAkzVnXnd5utSy5XX`
     );
     await onGenerate();
   };
