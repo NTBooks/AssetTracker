@@ -15,10 +15,10 @@ export default function Proof() {
     : "";
   return (
     <div className="card p-6">
-      <h2 className="text-xl font-semibold mb-2">Proof</h2>
+      <h2 className="mb-3 text-2xl font-semibold text-slate-800">Proof</h2>
       {cid ? (
         <div className="space-y-2">
-          <div className="text-sm text-stone-600">CID: {cid}</div>
+          <div className="text-sm text-slate-500">CID: {cid}</div>
           <ClvTag cid={cid} />
           <div className="flex items-center gap-2">
             <input className="input flex-1" readOnly value={shareUrl} />
@@ -34,14 +34,14 @@ export default function Proof() {
               {copied ? "Copied" : "Copy"}
             </button>
           </div>
-          <p className="text-sm text-stone-600">
+          <p className="text-sm text-slate-500">
             Note: It can take a few minutes for verification to be committed to
             the blockchain. If the tag does not show verified immediately,
             please check back shortly.
           </p>
         </div>
       ) : (
-        <div className="text-stone-600">No CID provided.</div>
+        <div className="text-slate-500">No CID provided.</div>
       )}
     </div>
   );

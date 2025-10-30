@@ -25,6 +25,9 @@ export default function RegisterAsset() {
   }, [location.search]);
   const [error, setError] = useState<string | null>(null);
 
+  const labelClass =
+    "block text-xs font-semibold tracking-[0.08em] uppercase text-slate-600 mb-2";
+
   const onRegister = async () => {
     const successUrl = window.location.origin + "/register?status=paid";
     const cancelUrl = window.location.href;
@@ -129,17 +132,16 @@ export default function RegisterAsset() {
   return (
     <div className="grid md:grid-cols-2 gap-6">
       {showSecretModal && result?.nextSecret ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
-            <h3 className="text-lg font-semibold mb-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur">
+          <div className="card w-full max-w-lg p-6">
+            <h3 className="mb-3 text-lg font-semibold text-slate-800">
               Save your next secret
             </h3>
-            <p className="text-sm text-stone-600 mb-4">
-              This secret is shown only once. Store it securely; you'll need it
-              for the next transfer.
+            <p className="mb-4 text-sm text-slate-500">
+              This secret is shown only once. Store it securely; you'll need it for the next transfer.
             </p>
-            <div className="flex items-center gap-2 mb-4">
-              <code className="font-mono text-sm break-all px-2 py-1 bg-stone-100 rounded flex-1">
+            <div className="mb-4 flex items-center gap-2">
+              <code className="flex-1 break-all rounded bg-autumn-50 px-3 py-2 font-mono text-sm text-autumn-800">
                 {result.nextSecret}
               </code>
               <button
@@ -163,11 +165,11 @@ export default function RegisterAsset() {
         </div>
       ) : null}
       <div className="card p-6 space-y-3">
-        <h2 className="text-xl font-semibold">Register Asset</h2>
+        <h2 className="text-2xl font-semibold text-slate-800">Register Asset</h2>
         <div className="grid grid-cols-3 gap-2 items-end">
           {singleSku ? null : (
             <div className="col-span-1">
-              <label className="block text-sm mb-1">SKU</label>
+              <label className={labelClass}>SKU</label>
               <input
                 className="input"
                 value={sku}
@@ -176,7 +178,7 @@ export default function RegisterAsset() {
             </div>
           )}
           <div className={singleSku ? "col-span-3" : "col-span-2"}>
-            <label className="block text-sm mb-1">Serial</label>
+            <label className={labelClass}>Serial</label>
             <input
               className="input"
               value={serial}
@@ -185,7 +187,7 @@ export default function RegisterAsset() {
           </div>
         </div>
         <div>
-          <label className="block text-sm mb-1">Your Name</label>
+          <label className={labelClass}>Your Name</label>
           <input
             className="input"
             value={ownerName}
@@ -193,7 +195,7 @@ export default function RegisterAsset() {
           />
         </div>
         <div>
-          <label className="block text-sm mb-1">Registration Secret</label>
+          <label className={labelClass}>Registration Secret</label>
           <input
             className="input"
             value={unlockSecret}
@@ -224,17 +226,17 @@ export default function RegisterAsset() {
         )}
       </div>
       <div className="card p-6">
-        <h3 className="font-semibold mb-2">Result</h3>
+        <h3 className="mb-3 text-lg font-semibold text-slate-800">Result</h3>
         {error ? (
-          <div className="text-red-700">{error}</div>
+          <div className="text-red-400">{error}</div>
         ) : result ? (
           <div className="space-y-3">
             {result.nextSecret ? (
-              <div className="text-stone-700">
+              <div className="text-slate-600">
                 A new secret was generated and shown to you.
               </div>
             ) : null}
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex flex-wrap gap-2">
               {result.publicUrl ? (
                 <a
                   className="btn-outline"
@@ -256,7 +258,7 @@ export default function RegisterAsset() {
             </div>
           </div>
         ) : (
-          <p className="text-stone-600">Awaiting submission.</p>
+          <p className="text-slate-500">Awaiting submission.</p>
         )}
       </div>
     </div>

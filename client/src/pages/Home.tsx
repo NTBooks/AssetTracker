@@ -6,9 +6,11 @@ export default function Home() {
   return (
     <div className="grid md:grid-cols-3 gap-6">
       {authenticated && isAdmin ? (
-        <div className="card p-6">
-          <div className="text-3xl mb-2">🧭</div>
-          <h2 className="text-xl font-semibold mb-1">Create Item</h2>
+        <div className="card p-6 transition-all hover:-translate-y-1 hover:border-autumn-300">
+          <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-autumn-100 text-2xl">
+            🧭
+          </div>
+          <h2 className="text-xl font-semibold mb-1 text-slate-800">Create Item</h2>
           <p className="mb-4 muted">
             Create a new item and receive an initial secret.
           </p>
@@ -17,9 +19,11 @@ export default function Home() {
           </Link>
         </div>
       ) : null}
-      <div className="card p-6">
-        <div className="text-3xl mb-2">📜</div>
-        <h2 className="text-xl font-semibold mb-1">Register Asset</h2>
+      <div className="card p-6 transition-all hover:-translate-y-1 hover:border-autumn-300">
+        <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-autumn-100 text-2xl">
+          📜
+        </div>
+        <h2 className="text-xl font-semibold mb-1 text-slate-800">Register Asset</h2>
         <p className="mb-4 muted">
           Transfer ownership using the seller's secret and get your private sale
           document.
@@ -28,9 +32,11 @@ export default function Home() {
           Register
         </Link>
       </div>
-      <div className="card p-6">
-        <div className="text-3xl mb-2">🔎</div>
-        <h2 className="text-xl font-semibold mb-1">Verify</h2>
+      <div className="card p-6 transition-all hover:-translate-y-1 hover:border-autumn-300">
+        <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-autumn-100 text-2xl">
+          🔎
+        </div>
+        <h2 className="text-xl font-semibold mb-1 text-slate-800">Verify</h2>
         <p className="mb-4 muted">
           Look up any SKU+Serial registration chain and contest if necessary.
         </p>

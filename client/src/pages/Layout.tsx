@@ -6,7 +6,7 @@ import {
   RecentItem,
   RECENT_EVENT,
 } from "../lib/recent";
-import { resolveIpfsCidToHttp } from "../lib/ipfs";
+import { resolveIpfsCidToHttp, resolveIpfsThumb } from "../lib/ipfs";
 import { initClVerify } from "../lib/clverify";
 import { useAuth } from "../lib/auth";
 
@@ -15,10 +15,10 @@ export default function Layout() {
   const auth = useAuth();
   const NavLink = ({ to, children }: { to: string; children: any }) => (
     <Link
-      className={`px-3 py-2 rounded-full transition-colors ${
+      className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
         pathname === to
-          ? "bg-autumn-600 text-white shadow"
-          : "text-autumn-800 hover:bg-autumn-100"
+          ? "bg-autumn-600 text-white shadow-md"
+          : "text-slate-600 hover:text-autumn-700 hover:bg-autumn-50"
       }`}
       to={to}>
       {children}
@@ -30,9 +30,11 @@ export default function Layout() {
       <ClvBootstrap />
       {/* Global event toasts overlay */}
       <EventToasts />
-      <header className="sticky top-0 z-10 bg-white/70 backdrop-blur border-b border-autumn-100/70">
-        <div className="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
-          <Link to="/" className="font-bold text-autumn-700 text-xl">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="max-w-6xl mx-auto flex items-center justify-between px-4 py-4">
+          <Link
+            to="/"
+            className="text-xl font-semibold tracking-tight text-autumn-700">
             Asset Tracker
           </Link>
           <nav className="flex gap-2 items-center">
@@ -42,7 +44,7 @@ export default function Layout() {
             {auth.authenticated && auth.isAdmin ? (
               <a
                 href="/api/audit"
-                className={`px-3 py-2 rounded-full transition-colors text-autumn-800 hover:bg-autumn-100`}>
+                className="px-4 py-2 rounded-full text-sm font-medium text-slate-600 transition-all hover:bg-autumn-50 hover:text-autumn-700">
                 Audit
               </a>
             ) : null}
@@ -52,15 +54,15 @@ export default function Layout() {
           </nav>
         </div>
       </header>
-      <div className="max-w-6xl mx-auto p-4 grid md:grid-cols-12 gap-6">
+      <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 grid md:grid-cols-12 gap-6">
         <aside className="md:col-span-4 lg:col-span-3 order-2 md:order-1 space-y-4">
           <RecentSidebar />
         </aside>
-        <main className="md:col-span-8 lg:col-span-9 order-1 md:order-2 space-y-4">
+        <main className="md:col-span-8 lg:col-span-9 order-1 md:order-2 space-y-5">
           <Outlet />
         </main>
       </div>
-      <footer className="mt-16 py-8 text-center text-sm text-stone-600">
+      <footer className="mt-12 py-6 text-center text-sm text-slate-500">
         Built with Chainletter Labs, Inc.
       </footer>
     </div>
@@ -86,15 +88,15 @@ function RecentSidebar() {
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="font-semibold">Recent</h3>
+        <h3 className="font-semibold text-slate-800">Recent</h3>
         <button
-          className="text-sm text-autumn-700 hover:underline"
+          className="text-sm text-autumn-700 hover:text-autumn-800"
           onClick={onClear}>
           Clear
         </button>
       </div>
       {items.length === 0 ? (
-        <div className="text-sm text-stone-500">No recent items</div>
+        <div className="text-sm text-slate-500">No recent items</div>
       ) : (
         <ul className="space-y-2">
           {items.map((it) => (
@@ -107,7 +109,7 @@ function RecentSidebar() {
                 {it.kind === "proof" && it.proofCid ? (
                   <Link
                     to={`/proof?cid=${encodeURIComponent(it.proofCid)}`}
-                    className="font-mono text-sm text-autumn-700 underline">
+                    className="font-mono text-sm text-autumn-700 underline decoration-autumn-400/60">
                     Proof • {it.sku}/{it.serial}
                   </Link>
                 ) : (
@@ -115,11 +117,11 @@ function RecentSidebar() {
                     to={`/verify?sku=${encodeURIComponent(
                       it.sku
                     )}&serial=${encodeURIComponent(it.serial)}`}
-                    className="font-mono text-sm text-autumn-700 underline">
+                    className="font-mono text-sm text-autumn-700 underline decoration-autumn-400/60">
                     {it.sku}/{it.serial}
                   </Link>
                 )}
-                <div className="text-xs text-stone-500">
+                <div className="text-xs text-slate-500">
                   {it.kind} • {new Date(it.when).toLocaleString()}
                 </div>
               </div>
@@ -161,7 +163,7 @@ function AdminAuthButton() {
   return authenticated ? (
     <div className="flex items-center gap-2">
       {userEmail ? (
-        <span className="text-sm text-stone-600 hidden sm:inline">
+        <span className="hidden text-sm text-slate-600 sm:inline">
           {userEmail}
           {typeof stampsCredits === "number"
             ? ` (${stampsCredits} stamps)`
@@ -218,11 +220,11 @@ function EventsPanel() {
   return (
     <div className="card p-4 mt-4">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="font-semibold">Events</h3>
+        <h3 className="font-semibold text-slate-800">Events</h3>
       </div>
       <div className="text-xs max-h-64 overflow-auto space-y-2">
         {lines.length === 0 ? (
-          <div className="text-stone-500">Awaiting events…</div>
+          <div className="text-slate-500">Awaiting events…</div>
         ) : (
           lines.map((l) =>
             l.type === "file.uploaded" && l.thumb ? (
@@ -235,13 +237,13 @@ function EventsPanel() {
                 <img
                   src={l.thumb}
                   alt="thumb"
-                  className="w-8 h-8 object-cover rounded border"
+                  className="w-9 h-9 object-cover rounded border border-slate-200"
                 />
                 <div className="flex-1">
                   <div className="font-medium">
-                    {l.type} <span className="text-stone-500">{l.time}</span>
+                    {l.type} <span className="text-slate-500">{l.time}</span>
                   </div>
-                  <div className="text-stone-600 truncate">
+                  <div className="text-slate-500 truncate">
                     {l.name || l.cid || "—"}
                   </div>
                 </div>
@@ -252,16 +254,16 @@ function EventsPanel() {
                   <img
                     src={l.thumb}
                     alt="thumb"
-                    className="w-8 h-8 object-cover rounded border"
+                    className="w-9 h-9 object-cover rounded border border-slate-200"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded bg-autumn-100" />
+                  <div className="w-9 h-9 rounded border border-autumn-100 bg-autumn-50" />
                 )}
                 <div className="flex-1">
                   <div className="font-medium">
-                    {l.type} <span className="text-stone-500">{l.time}</span>
+                    {l.type} <span className="text-slate-500">{l.time}</span>
                   </div>
-                  <div className="text-stone-600 truncate">
+                  <div className="text-slate-500 truncate">
                     {l.name || l.cid || "—"}
                   </div>
                 </div>
@@ -321,26 +323,26 @@ function EventToasts() {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className="pointer-events-auto card p-3 shadow-lg bg-white border flex items-center gap-3 min-w-[260px]">
+          className="pointer-events-auto card p-3 flex items-center gap-3 min-w-[260px] border border-slate-200 bg-white">
           {t.thumb ? (
             <img
               src={t.thumb}
               alt="thumb"
-              className="w-8 h-8 object-cover rounded border"
+              className="w-9 h-9 object-cover rounded border border-slate-200"
             />
           ) : (
-            <div className="w-8 h-8 rounded bg-autumn-100" />
+            <div className="w-9 h-9 rounded border border-autumn-100 bg-autumn-50" />
           )}
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium truncate">
-              {t.type} <span className="text-stone-500">{t.time}</span>
+              {t.type} <span className="text-slate-500">{t.time}</span>
             </div>
-            <div className="text-xs text-stone-600 truncate">
+            <div className="text-xs text-slate-500 truncate">
               {t.name || t.cid || "—"}
             </div>
           </div>
           <button
-            className="text-stone-400 hover:text-stone-600"
+            className="text-slate-400 transition-colors hover:text-slate-600"
             onClick={() => {
               const tm = timers.get(t.id);
               if (tm) clearTimeout(tm);

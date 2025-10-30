@@ -43,6 +43,9 @@ export default function CreateItem() {
   );
   const [certReady, setCertReady] = useState(false);
 
+  const labelClass =
+    "block text-xs font-semibold tracking-[0.08em] uppercase text-slate-600 mb-2";
+
   const onGenerate = async () => {
     const g = await generateSerial();
     setSku(singleSku || g.sku);
@@ -187,7 +190,7 @@ export default function CreateItem() {
   if (authLoading) {
     return (
       <div className="card p-6">
-        <div className="text-stone-600">Checking permissions…</div>
+        <div className="text-slate-500">Checking permissions…</div>
       </div>
     );
   }
@@ -195,8 +198,8 @@ export default function CreateItem() {
   if (!authenticated || !isAdmin) {
     return (
       <div className="card p-6">
-        <h2 className="text-xl font-semibold mb-2">Admins only</h2>
-        <p className="text-stone-600 mb-4">
+        <h2 className="mb-2 text-xl font-semibold text-slate-800">Admins only</h2>
+        <p className="mb-4 text-slate-500">
           You must be a logged-in admin to create items.
         </p>
         {!authenticated && !hideLogin ? (
@@ -212,10 +215,10 @@ export default function CreateItem() {
     <div className="space-y-6">
       {submittedMode === null ? (
         <div className="card p-6">
-          <h2 className="text-xl font-semibold mb-4">Create New Item</h2>
+          <h2 className="mb-4 text-2xl font-semibold text-slate-800">Create New Item</h2>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm mb-1">Item Name</label>
+              <label className={labelClass}>Item Name</label>
               <input
                 className="input"
                 value={itemName}
@@ -223,7 +226,7 @@ export default function CreateItem() {
               />
             </div>
             <div>
-              <label className="block text-sm mb-1">Description</label>
+              <label className={labelClass}>Description</label>
               <textarea
                 className="input min-h-[100px]"
                 value={itemDescription}
@@ -231,7 +234,7 @@ export default function CreateItem() {
               />
             </div>
             <div>
-              <label className="block text-sm mb-1">Optional Photo URL</label>
+              <label className={labelClass}>Optional Photo URL</label>
               <input
                 className="input"
                 value={photoUrl}
@@ -262,14 +265,14 @@ export default function CreateItem() {
                   }}
                 />
                 {uploadBusy ? (
-                  <span className="text-sm text-stone-500">Uploading…</span>
+                  <span className="text-sm text-slate-500">Uploading…</span>
                 ) : null}
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2 items-end">
               {singleSku ? null : (
                 <div className="col-span-1">
-                  <label className="block text-sm mb-1">SKU</label>
+                  <label className={labelClass}>SKU</label>
                   <input
                     className="input"
                     value={sku}
@@ -278,7 +281,7 @@ export default function CreateItem() {
                 </div>
               )}
               <div className={singleSku ? "col-span-3" : "col-span-2"}>
-                <label className="block text-sm mb-1">Serial</label>
+                <label className={labelClass}>Serial</label>
                 <input
                   className="input"
                   value={serial}
@@ -310,16 +313,16 @@ export default function CreateItem() {
               )}
             </div>
             {/* Bulk Create (sub-option) */}
-            <div className="pt-6 border-t border-autumn-100 mt-4">
-              <h3 className="font-semibold mb-2">Bulk Create Range</h3>
-              <p className="text-sm text-stone-600 mb-3">
+            <div className="pt-6 mt-4 border-t border-slate-200">
+              <h3 className="mb-2 text-lg font-semibold text-slate-800">Bulk Create Range</h3>
+              <p className="mb-3 text-sm text-slate-500">
                 Create many items with the same details. Serial numbers will be
                 numeric and padded with left zeros.
               </p>
               <div className="grid md:grid-cols-3 gap-3 mb-3">
                 {singleSku ? null : (
                   <div>
-                    <label className="block text-sm mb-1">SKU</label>
+                    <label className={labelClass}>SKU</label>
                     <input
                       className="input"
                       value={sku}
@@ -328,7 +331,7 @@ export default function CreateItem() {
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm mb-1">Start</label>
+                  <label className={labelClass}>Start</label>
                   <input
                     className="input"
                     type="number"
@@ -337,7 +340,7 @@ export default function CreateItem() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm mb-1">End</label>
+                  <label className={labelClass}>End</label>
                   <input
                     className="input"
                     type="number"
@@ -348,7 +351,7 @@ export default function CreateItem() {
               </div>
               <div className="grid md:grid-cols-3 gap-3 mb-3">
                 <div className="md:col-span-1">
-                  <label className="block text-sm mb-1">Decimals (pad)</label>
+                  <label className={labelClass}>Decimals (pad)</label>
                   <input
                     className="input"
                     type="number"
@@ -377,20 +380,19 @@ export default function CreateItem() {
               </div>
               {bulkTotal > 0 && (
                 <div className="mt-3">
-                  <div className="h-3 w-full bg-autumn-100 rounded">
+                  <div className="h-3 w-full rounded bg-slate-200">
                     <div
-                      className="h-3 bg-autumn-600 rounded"
+                      className="h-3 rounded bg-autumn-500"
                       style={{
                         width: `${Math.round((bulkDone / bulkTotal) * 100)}%`,
                       }}
                     />
                   </div>
-                  <div className="text-sm text-stone-600 mt-2">
-                    {bulkDone}/{bulkTotal} • Success {bulkSuccess} • Failed{" "}
-                    {bulkFailed}
+                  <div className="mt-2 text-sm text-slate-500">
+                    {bulkDone}/{bulkTotal} • Success {bulkSuccess} • Failed {bulkFailed}
                   </div>
                   {bulkErrors.length > 0 && (
-                    <div className="mt-2 text-xs text-red-700 max-h-40 overflow-auto border border-red-200 rounded p-2 bg-red-50">
+                    <div className="mt-2 max-h-40 overflow-auto rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-300">
                       {bulkErrors.map((e, i) => (
                         <div key={i}>
                           Serial {e.serial}: {e.message}
@@ -408,17 +410,17 @@ export default function CreateItem() {
       {/* Result / Progress Panel */}
       {submittedMode !== null ? (
         <div className="card p-6">
-          <h3 className="font-semibold mb-2">
+          <h3 className="mb-3 text-lg font-semibold text-slate-800">
             {submittedMode === "bulk" ? "Bulk Create" : "Result"}
           </h3>
           {submittedMode === "single" ? (
             error ? (
-              <div className="text-red-700 mb-3">{error}</div>
+              <div className="mb-3 text-red-400">{error}</div>
             ) : loading || !result ? (
-              <div className="text-stone-600">Creating item…</div>
+              <div className="text-slate-500">Creating item…</div>
             ) : (
               <div className="space-y-3">
-                <div className="text-stone-700">
+                <div className="text-slate-700">
                   Initial Secret:{" "}
                   <span className="font-mono">{result.initialSecret}</span>
                 </div>
@@ -476,25 +478,22 @@ export default function CreateItem() {
           ) : (
             <div>
               {bulkRunning ? (
-                <div className="text-stone-600 mb-2">Running bulk create…</div>
+                <div className="mb-2 text-slate-500">Running bulk create…</div>
               ) : (
-                <div className="text-stone-700 mb-2">
-                  Completed {bulkDone}/{bulkTotal} • Success {bulkSuccess} •
-                  Failed {bulkFailed}
+                <div className="mb-2 text-slate-700">
+                  Completed {bulkDone}/{bulkTotal} • Success {bulkSuccess} • Failed {bulkFailed}
                 </div>
               )}
-              <div className="h-3 w-full bg-autumn-100 rounded">
+              <div className="h-3 w-full rounded bg-slate-200">
                 <div
-                  className="h-3 bg-autumn-600 rounded"
+                  className="h-3 rounded bg-autumn-500"
                   style={{
-                    width: bulkTotal
-                      ? `${Math.round((bulkDone / bulkTotal) * 100)}%`
-                      : "0%",
+                    width: bulkTotal ? `${Math.round((bulkDone / bulkTotal) * 100)}%` : "0%",
                   }}
                 />
               </div>
               {bulkErrors.length > 0 && (
-                <div className="mt-3 text-xs text-red-700 max-h-40 overflow-auto border border-red-200 rounded p-2 bg-red-50">
+                <div className="mt-3 max-h-40 overflow-auto rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-300">
                   {bulkErrors.map((e, i) => (
                     <div key={i}>
                       Serial {e.serial}: {e.message}

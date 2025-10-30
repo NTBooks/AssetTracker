@@ -61,6 +61,9 @@ export default function Verify() {
     error?: string;
   }>({ open: false, secret: "", loading: false });
 
+  const labelClass =
+    "block text-xs font-semibold tracking-[0.08em] uppercase text-slate-600 mb-2";
+
   const onSearch = async () => {
     setLoading(true);
     setData(null);
@@ -243,10 +246,10 @@ export default function Verify() {
 
   return (
     <div className="space-y-4">
-      <div className="card p-4 flex gap-2 items-end">
+      <div className="card flex flex-wrap items-end gap-4 p-4">
         {singleSku ? null : (
           <div>
-            <label className="block text-sm mb-1">SKU</label>
+            <label className={labelClass}>SKU</label>
             <input
               className="input"
               value={sku}
@@ -255,7 +258,7 @@ export default function Verify() {
           </div>
         )}
         <div>
-          <label className="block text-sm mb-1">Serial</label>
+          <label className={labelClass}>Serial</label>
           <input
             className="input"
             value={serial}
@@ -301,11 +304,11 @@ export default function Verify() {
               );
             }
             return (
-              <div className="card p-4 border-green-300 bg-green-50/80">
-                <div className="text-green-800 font-semibold mb-1">
+              <div className="card border border-autumn-500/40 bg-autumn-50 p-4">
+                <div className="mb-1 font-semibold text-autumn-700">
                   Clean History
                 </div>
-                <div className="text-sm text-green-900">
+                <div className="text-sm text-autumn-700/80">
                   No contested registrations found for this item.
                 </div>
               </div>
@@ -322,14 +325,14 @@ export default function Verify() {
           <div className="grid md:grid-cols-2 gap-4">
             {data?.serial?.photo_url ? (
               <div className="card p-4">
-                <h3 className="font-semibold mb-2">Item</h3>
+                <h3 className="mb-2 text-lg font-semibold text-slate-800">Item</h3>
                 {!thumbReady ? (
                   <div>
-                    <div className="w-full h-40 bg-stone-200 rounded mb-3 animate-pulse" />
+                    <div className="mb-3 h-40 w-full animate-pulse rounded bg-slate-200" />
                     <div className="space-y-2 animate-pulse">
-                      <div className="h-3 bg-stone-200 rounded w-2/3" />
-                      <div className="h-3 bg-stone-200 rounded w-3/5" />
-                      <div className="h-3 bg-stone-200 rounded w-1/3" />
+                      <div className="h-3 w-2/3 rounded bg-slate-200" />
+                      <div className="h-3 w-3/5 rounded bg-slate-200" />
+                      <div className="h-3 w-1/3 rounded bg-slate-200" />
                     </div>
                     <ItemMeta
                       name={data?.serial?.item_name}
@@ -347,7 +350,7 @@ export default function Verify() {
                         urlOrCid={data.serial.photo_url}
                         size={600}
                         alt="Item thumbnail"
-                        className="w-full h-48 object-cover rounded border"
+                        className="h-48 w-full rounded border border-slate-200 object-cover"
                       />
                     </a>
                     <ItemMeta
@@ -366,7 +369,7 @@ export default function Verify() {
                         urlOrCid={data.serial.photo_url}
                         size={300}
                         alt="Item thumbnail"
-                        className="w-40 h-40 object-cover rounded border"
+                        className="h-40 w-40 rounded border border-slate-200 object-cover"
                       />
                     </a>
                     <ItemMeta
@@ -379,7 +382,7 @@ export default function Verify() {
             ) : null}
             {data?.serial?.public_cid ? (
               <div className="card p-4">
-                <h3 className="font-semibold mb-2">Original Certificate</h3>
+                <h3 className="mb-2 text-lg font-semibold text-slate-800">Original Certificate</h3>
                 <ClvLink
                   cid={data.serial.public_cid}
                   className="inline-block"
@@ -389,7 +392,7 @@ export default function Verify() {
                   <CidThumb
                     cid={data.serial.public_cid}
                     size={300}
-                    className="max-h-64 rounded border"
+                    className="max-h-64 rounded border border-slate-200"
                   />
                 </ClvLink>
               </div>
@@ -407,19 +410,23 @@ export default function Verify() {
           <div className="space-y-4">
             <div
               className={`card p-4 ${
-                contestedCount ? "border-red-300" : "border-green-300"
+                contestedCount
+                  ? "border border-red-500/40"
+                  : "border border-autumn-500/30"
               }`}>
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm text-stone-600">Status</div>
-                  <div className="font-semibold">
-                    {chainCount}{" "}
-                    {chainCount === 1 ? "registration" : "registrations"} •{" "}
-                    {contestedCount
-                      ? `${contestedCount} ${
-                          contestedCount === 1 ? "issue" : "issues"
-                        }`
-                      : "no issues"}
+                  <div className="text-sm text-slate-500">Status</div>
+                  <div className="font-semibold text-slate-800">
+                    {`${chainCount} ${
+                      chainCount === 1 ? "registration" : "registrations"
+                    } • ${
+                      contestedCount
+                        ? `${contestedCount} ${
+                            contestedCount === 1 ? "issue" : "issues"
+                          }`
+                        : "no issues"
+                    }`}
                   </div>
                 </div>
                 <a
@@ -434,26 +441,26 @@ export default function Verify() {
 
             {(data.registrations ?? []).length > 0 ? (
               <div className="card p-4">
-                <h3 className="font-semibold mb-2">Registrations</h3>
-                <p className="text-sm text-stone-600 mb-3">
+                <h3 className="mb-2 text-lg font-semibold text-slate-800">Registrations</h3>
+                <p className="mb-3 text-sm text-slate-500">
                   Note: You can only create proofs or report issues for
                   registrations you control, and you will need the original
                   registration secret to make changes.
                 </p>
-                <ul className="divide-y">
+                <ul className="divide-y divide-slate-200">
                   {(data.registrations ?? []).map((r: any, idx: number) => (
                     <li
                       key={r.id}
-                      className="py-3 flex items-center justify-between">
+                      className="flex items-center justify-between py-3">
                       <div>
                         <div className="font-medium">{r.owner_name}</div>
-                        <div className="text-sm text-stone-500">
+                        <div className="text-sm text-slate-500">
                           {formatLocalDateTime(r.created_at)}
                         </div>
                         {r.public_file_url && (
                           <div className="flex items-center gap-2">
                             <a
-                              className="text-autumn-700 underline"
+                              className="text-autumn-700 underline decoration-autumn-400/60"
                               href={r.public_file_url}
                               target="_blank">
                               Public file
@@ -468,7 +475,7 @@ export default function Verify() {
                           </div>
                         )}
                         {r.contested ? (
-                          <span className="ml-2 text-red-600">Contested</span>
+                          <span className="ml-2 text-sm text-red-500">Contested</span>
                         ) : null}
                       </div>
                       <div className="flex items-center gap-2">
@@ -508,21 +515,21 @@ export default function Verify() {
       )}
       {/* Contest Modal */}
       {contestModal.open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
-            <h3 className="text-lg font-semibold mb-2">Contest Registration</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur">
+          <div className="card w-full max-w-lg p-6">
+            <h3 className="mb-3 text-lg font-semibold text-slate-800">Contest Registration</h3>
             {contestModal.error ? (
-              <div className="mb-3 text-red-700">{contestModal.error}</div>
+              <div className="mb-3 text-sm text-red-500">{contestModal.error}</div>
             ) : null}
-            <label className="block text-sm mb-1">Registration Secret</label>
+            <label className={labelClass}>Registration Secret</label>
             <input
-              className="input mb-3"
+              className="input mb-4"
               value={contestModal.secret}
               onChange={(e) =>
                 setContestModal((m) => ({ ...m, secret: e.target.value }))
               }
             />
-            <label className="block text-sm mb-1">Reason</label>
+            <label className={labelClass}>Reason</label>
             <select
               className="input mb-4"
               value={contestModal.reason}
@@ -585,21 +592,21 @@ export default function Verify() {
 
       {/* Create Proof Modal */}
       {proofModal.open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
-            <h3 className="text-lg font-semibold mb-2">Create Proof</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur">
+          <div className="card w-full max-w-lg p-6">
+            <h3 className="mb-3 text-lg font-semibold text-slate-800">Create Proof</h3>
             {proofModal.error ? (
-              <div className="mb-3 text-red-700">{proofModal.error}</div>
+              <div className="mb-3 text-sm text-red-500">{proofModal.error}</div>
             ) : null}
-            <label className="block text-sm mb-1">Registration Secret</label>
+            <label className={labelClass}>Registration Secret</label>
             <input
-              className="input mb-3"
+              className="input mb-4"
               value={proofModal.secret}
               onChange={(e) =>
                 setProofModal((m) => ({ ...m, secret: e.target.value }))
               }
             />
-            <label className="block text-sm mb-1">Proof Phrase</label>
+            <label className={labelClass}>Proof Phrase</label>
             <input
               className="input mb-4"
               value={proofModal.phrase}
@@ -680,23 +687,23 @@ export default function Verify() {
 
       {/* Transfer Modal */}
       {transferModal.open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
-            <h3 className="text-lg font-semibold mb-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur">
+          <div className="card w-full max-w-lg p-6">
+            <h3 className="mb-3 text-lg font-semibold text-slate-800">
               Create Transfer Document
             </h3>
             {transferModal.error ? (
-              <div className="mb-3 text-red-700">{transferModal.error}</div>
+              <div className="mb-3 text-sm text-red-500">{transferModal.error}</div>
             ) : null}
-            <label className="block text-sm mb-1">Registration Secret</label>
+            <label className={labelClass}>Registration Secret</label>
             <input
-              className="input mb-3"
+              className="input mb-4"
               value={transferModal.secret}
               onChange={(e) =>
                 setTransferModal((m) => ({ ...m, secret: e.target.value }))
               }
             />
-            <label className="block text-sm mb-1">Your Name (optional)</label>
+            <label className={labelClass}>Your Name (optional)</label>
             <input
               className="input mb-4"
               value={transferModal.ownerName}
@@ -769,13 +776,13 @@ export default function Verify() {
 
       {/* Revoke Modal */}
       {revokeModal.open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
-            <h3 className="text-lg font-semibold mb-2">Revoke Transfer</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur">
+          <div className="card w-full max-w-lg p-6">
+            <h3 className="mb-3 text-lg font-semibold text-slate-800">Revoke Transfer</h3>
             {revokeModal.error ? (
-              <div className="mb-3 text-red-700">{revokeModal.error}</div>
+              <div className="mb-3 text-sm text-red-500">{revokeModal.error}</div>
             ) : null}
-            <label className="block text-sm mb-1">Registration Secret</label>
+            <label className={labelClass}>Registration Secret</label>
             <input
               className="input mb-4"
               value={revokeModal.secret}
@@ -839,14 +846,14 @@ function ItemMeta({
   return (
     <div className="flex-1 min-w-0">
       {name ? (
-        <div className="font-semibold mb-1 break-words">{name}</div>
+        <div className="mb-1 break-words font-semibold text-slate-800">{name}</div>
       ) : null}
       {description ? (
-        <div className="text-sm text-stone-700 whitespace-pre-wrap break-words">
+        <div className="whitespace-pre-wrap break-words text-sm text-slate-600">
           {description}
         </div>
       ) : (
-        <div className="text-sm text-stone-500">No description</div>
+        <div className="text-sm text-slate-500">No description</div>
       )}
     </div>
   );
@@ -863,14 +870,14 @@ function SkeletonPanel({
 }) {
   return (
     <div className="card p-4">
-      <h3 className="font-semibold mb-2">{title}</h3>
+      <h3 className="mb-2 text-lg font-semibold text-slate-800">{title}</h3>
       <div className="animate-pulse">
         {withImage ? (
-          <div className="w-full h-40 bg-stone-200 rounded mb-3" />
+          <div className="mb-3 h-40 w-full rounded bg-slate-200" />
         ) : null}
         <div className="space-y-2">
           {Array.from({ length: lines }).map((_, i) => (
-            <div key={i} className="h-3 bg-stone-200 rounded" />
+            <div key={i} className="h-3 rounded bg-slate-200" />
           ))}
         </div>
       </div>
@@ -881,15 +888,15 @@ function SkeletonPanel({
 function SkeletonList({ title, items = 3 }: { title: string; items?: number }) {
   return (
     <div className="card p-4">
-      <h3 className="font-semibold mb-2">{title}</h3>
+      <h3 className="mb-2 text-lg font-semibold text-slate-800">{title}</h3>
       <div className="space-y-3 animate-pulse">
         {Array.from({ length: items }).map((_, i) => (
           <div key={i} className="flex items-center justify-between">
-            <div className="space-y-2 w-2/3">
-              <div className="h-3 bg-stone-200 rounded w-2/3" />
-              <div className="h-3 bg-stone-200 rounded w-1/3" />
+            <div className="w-2/3 space-y-2">
+              <div className="h-3 w-2/3 rounded bg-slate-200" />
+              <div className="h-3 w-1/3 rounded bg-slate-200" />
             </div>
-            <div className="h-8 w-20 bg-stone-200 rounded" />
+            <div className="h-8 w-20 rounded bg-slate-200" />
           </div>
         ))}
       </div>
