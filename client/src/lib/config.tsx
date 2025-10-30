@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { API_BASE_URL, IS_SAME_ORIGIN } from "./api";
 
 type AppConfig = {
   loading: boolean;
@@ -21,7 +22,10 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/config")
+    const base = (API_BASE_URL || "").replace(/\/+$/, "");
+    fetch(`${base}/api/config`, {
+      credentials: IS_SAME_ORIGIN ? "include" : "omit",
+    })
       .then((r) => r.json())
       .then((json) => {
         if (cancelled) return;

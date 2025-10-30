@@ -174,13 +174,9 @@
        y="127.69196"
        id="text9"
        style="font-style:normal;font-variant:normal;font-weight:600;font-stretch:normal;font-size:18px;line-height:normal;font-family:sans-serif">Description</text>
-    <text
-      class="value"
-      x="154.80446"
-      y="127.03468"
-      id="text8-9-7"
-      xml:space="preserve"
-      style="font-style:normal;font-variant:normal;font-weight:400;font-stretch:normal;font-size:20px;line-height:1.2;font-family:ui-monospace, monospace;fill:#111827">##ITEM_DESC##</text>
+    <foreignObject x="154.80446" y="120" width="680" height="120" id="fo-desc">
+      <div xmlns="http://www.w3.org/1999/xhtml" style="font:20px ui-monospace, monospace; color:#111827; white-space:pre-wrap; line-height:1.2; margin:0">##ITEM_DESC##</div>
+    </foreignObject>
     <text
        class="label"
        x="-37.203831"
@@ -193,10 +189,7 @@
        y="247.91379"
        id="text9-6-9"
        style="font-style:normal;font-variant:normal;font-weight:600;font-stretch:normal;font-size:18px;line-height:normal;font-family:sans-serif;fill:#4b5563">Certificate Date</text>
-    <path
-       style="fill:#000000;fill-opacity:0;stroke:#999999;stroke-width:2.4;stroke-dasharray:none"
-       d="M -58.324765,160.24102 H 363.21098"
-       id="path3" />
+    
   </g>
   <g
      transform="matrix(0.11497639,0,0,0.11497639,229.19793,43.049071)"

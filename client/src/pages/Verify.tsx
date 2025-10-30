@@ -121,7 +121,10 @@ export default function Verify() {
       else setThumbOrientation("square");
       setThumbReady(true);
     };
-    img.onerror = () => setThumbOrientation(null);
+    img.onerror = () => {
+      setThumbOrientation(null);
+      setThumbReady(true);
+    };
     img.src = url;
   }, [data?.serial?.photo_url]);
 
@@ -328,6 +331,10 @@ export default function Verify() {
                       <div className="h-3 bg-stone-200 rounded w-3/5" />
                       <div className="h-3 bg-stone-200 rounded w-1/3" />
                     </div>
+                    <ItemMeta
+                      name={data?.serial?.item_name}
+                      description={data?.serial?.item_description}
+                    />
                   </div>
                 ) : thumbOrientation === "landscape" ? (
                   <div>
@@ -336,10 +343,9 @@ export default function Verify() {
                       href={data.serial.photo_url}
                       target="_blank"
                       rel="noopener noreferrer">
-                      <FadeImg
-                        src={
-                          toThumbFromUrlOrCid(data.serial.photo_url, 600) || ""
-                        }
+                      <UrlOrCidThumb
+                        urlOrCid={data.serial.photo_url}
+                        size={600}
                         alt="Item thumbnail"
                         className="w-full h-48 object-cover rounded border"
                       />
@@ -356,10 +362,9 @@ export default function Verify() {
                       href={data.serial.photo_url}
                       target="_blank"
                       rel="noopener noreferrer">
-                      <FadeImg
-                        src={
-                          toThumbFromUrlOrCid(data.serial.photo_url, 300) || ""
-                        }
+                      <UrlOrCidThumb
+                        urlOrCid={data.serial.photo_url}
+                        size={300}
                         alt="Item thumbnail"
                         className="w-40 h-40 object-cover rounded border"
                       />
@@ -373,27 +378,21 @@ export default function Verify() {
               </div>
             ) : null}
             {data?.serial?.public_cid ? (
-              certReady ? (
-                <div className="card p-4">
-                  <h3 className="font-semibold mb-2">Original Certificate</h3>
-                  <ClvLink
+              <div className="card p-4">
+                <h3 className="font-semibold mb-2">Original Certificate</h3>
+                <ClvLink
+                  cid={data.serial.public_cid}
+                  className="inline-block"
+                  href={resolveIpfsCidToHttp(data.serial.public_cid) || "#"}
+                  target="_blank"
+                  rel="noopener noreferrer">
+                  <CidThumb
                     cid={data.serial.public_cid}
-                    className="inline-block"
-                    href={resolveIpfsCidToHttp(data.serial.public_cid) || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer">
-                    <img
-                      src={
-                        toThumbFromUrlOrCid(data.serial.public_cid, 300) || ""
-                      }
-                      alt="Original certificate"
-                      className="max-h-64 rounded border"
-                    />
-                  </ClvLink>
-                </div>
-              ) : (
-                <SkeletonPanel title="Original Certificate" withImage />
-              )
+                    size={300}
+                    className="max-h-64 rounded border"
+                  />
+                </ClvLink>
+              </div>
             ) : null}
           </div>
         )
@@ -913,9 +912,67 @@ function FadeImg({
       src={src}
       alt={alt}
       onLoad={() => setLoaded(true)}
+      onError={() => setLoaded(true)}
       className={`${className || ""} transition-opacity duration-300 ${
         loaded ? "opacity-100" : "opacity-0"
       }`}
+    />
+  );
+}
+
+function CidThumb({
+  cid,
+  size = 300,
+  className,
+}: {
+  cid: string;
+  size?: number;
+  className?: string;
+}) {
+  const [idx, setIdx] = useState(0);
+  const gateways = [
+    (import.meta.env.VITE_IPFS_GATEWAY as string) ||
+      "https://gateway.pinata.cloud/ipfs/:cid",
+    "https://cloudflare-ipfs.com/ipfs/:cid",
+    "https://ipfs.io/ipfs/:cid",
+  ];
+  const base = (gateways[idx] || gateways[0]).replace(":cid", cid);
+  const src = `${base}${base.includes("?") ? "&" : "?"}img-width=${size}`;
+  return (
+    <img
+      src={src}
+      alt="Original certificate"
+      className={className}
+      onError={() => setIdx((i) => (i + 1 < gateways.length ? i + 1 : i))}
+    />
+  );
+}
+
+function UrlOrCidThumb({
+  urlOrCid,
+  size = 300,
+  alt,
+  className,
+}: {
+  urlOrCid: string;
+  size?: number;
+  alt: string;
+  className?: string;
+}) {
+  const cid = extractCidFromUrlOrString(urlOrCid);
+  const [attempt, setAttempt] = useState(0);
+  if (cid) {
+    return <CidThumb cid={cid} size={size} className={className} />;
+  }
+  const withParam = toThumbFromUrlOrCid(urlOrCid, size) || urlOrCid;
+  const plain = urlOrCid;
+  const src = attempt === 0 ? withParam : plain;
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      onError={() => setAttempt((a) => (a < 1 ? a + 1 : a))}
     />
   );
 }

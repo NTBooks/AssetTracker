@@ -1,7 +1,24 @@
 import axios from "axios";
 
-// Ensure cookies are sent for proxied same-origin routes (login/checklogin/logout)
-axios.defaults.withCredentials = true;
+// Configurable API base and credential strategy
+const RAW_API_BASE = (import.meta.env.VITE_API_BASE_URL as string) || "";
+const API_BASE = RAW_API_BASE.replace(/\/+$/, "");
+const SAME_ORIGIN =
+  !API_BASE ||
+  (() => {
+    try {
+      return new URL(API_BASE).origin === window.location.origin;
+    } catch {
+      return true;
+    }
+  })();
+
+axios.defaults.baseURL = API_BASE || "";
+// Only include credentials for same-origin requests
+axios.defaults.withCredentials = SAME_ORIGIN;
+
+export const API_BASE_URL = API_BASE;
+export const IS_SAME_ORIGIN = SAME_ORIGIN;
 
 export async function generateSerial() {
   const { data } = await axios.post("/api/generate-serial");
