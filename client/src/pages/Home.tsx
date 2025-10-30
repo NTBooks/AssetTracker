@@ -1,5 +1,10 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import {
+  CubeIcon,
+  ClipboardDocumentCheckIcon,
+  MagnifyingGlassCircleIcon,
+} from "@heroicons/react/24/outline";
 
 export default function Home() {
   const { authenticated, isAdmin } = useAuth();
@@ -7,8 +12,8 @@ export default function Home() {
     <div className="grid md:grid-cols-3 gap-6">
       {authenticated && isAdmin ? (
         <div className="card p-6 transition-all hover:-translate-y-1 hover:border-autumn-300">
-          <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-autumn-100 text-2xl">
-            🧭
+          <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-autumn-100 text-autumn-700">
+            <CubeIcon className="h-6 w-6" aria-hidden="true" />
           </div>
           <h2 className="text-xl font-semibold mb-1 text-slate-800">Create Item</h2>
           <p className="mb-4 muted">
@@ -20,8 +25,8 @@ export default function Home() {
         </div>
       ) : null}
       <div className="card p-6 transition-all hover:-translate-y-1 hover:border-autumn-300">
-        <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-autumn-100 text-2xl">
-          📜
+        <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-autumn-100 text-autumn-700">
+          <ClipboardDocumentCheckIcon className="h-6 w-6" aria-hidden="true" />
         </div>
         <h2 className="text-xl font-semibold mb-1 text-slate-800">Register Asset</h2>
         <p className="mb-4 muted">
@@ -33,8 +38,8 @@ export default function Home() {
         </Link>
       </div>
       <div className="card p-6 transition-all hover:-translate-y-1 hover:border-autumn-300">
-        <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-autumn-100 text-2xl">
-          🔎
+        <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-autumn-100 text-autumn-700">
+          <MagnifyingGlassCircleIcon className="h-6 w-6" aria-hidden="true" />
         </div>
         <h2 className="text-xl font-semibold mb-1 text-slate-800">Verify</h2>
         <p className="mb-4 muted">

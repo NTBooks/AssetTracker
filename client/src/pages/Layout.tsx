@@ -9,6 +9,13 @@ import {
 import { resolveIpfsCidToHttp, resolveIpfsThumb } from "../lib/ipfs";
 import { initClVerify } from "../lib/clverify";
 import { useAuth } from "../lib/auth";
+import {
+  ArrowUpTrayIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  InformationCircleIcon,
+  DocumentTextIcon,
+} from "@heroicons/react/24/outline";
 
 export default function Layout() {
   const { pathname } = useLocation();
@@ -190,6 +197,25 @@ type EventLine = {
   thumb?: string;
 };
 
+function ToastIcon({ type }: { type: string }) {
+  const normalized = String(type || "").toLowerCase();
+  let Icon = InformationCircleIcon;
+  if (normalized.includes("upload") || normalized.includes("file")) {
+    Icon = ArrowUpTrayIcon;
+  } else if (normalized.includes("proof") || normalized.includes("document")) {
+    Icon = DocumentTextIcon;
+  } else if (normalized.includes("success") || normalized.includes("complete")) {
+    Icon = CheckCircleIcon;
+  } else if (normalized.includes("error") || normalized.includes("fail") || normalized.includes("revok")) {
+    Icon = ExclamationTriangleIcon;
+  }
+  return (
+    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-autumn-50 text-autumn-700">
+      <Icon aria-hidden="true" className="h-5 w-5" />
+    </div>
+  );
+}
+
 function EventsPanel() {
   const [lines, setLines] = useState<EventLine[]>([]);
   useEffect(() => {
@@ -324,15 +350,7 @@ function EventToasts() {
         <div
           key={t.id}
           className="pointer-events-auto card p-3 flex items-center gap-3 min-w-[260px] border border-slate-200 bg-white">
-          {t.thumb ? (
-            <img
-              src={t.thumb}
-              alt="thumb"
-              className="w-9 h-9 object-cover rounded border border-slate-200"
-            />
-          ) : (
-            <div className="w-9 h-9 rounded border border-autumn-100 bg-autumn-50" />
-          )}
+          <ToastIcon type={t.type} />
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium truncate">
               {t.type} <span className="text-slate-500">{t.time}</span>
