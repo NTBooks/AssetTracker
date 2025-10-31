@@ -3,6 +3,7 @@ import axios from 'axios';
 import { generateSecret, hashSecret, verifySecret } from '../lib/crypto.js';
 import { generatePublicCertificateSvg, generatePrivateSaleSvg, generateNextSecretSvg } from '../lib/svg.js';
 import { buildRegistrationHistoryText } from '../lib/history.js';
+import { createAuditProof, getAuditHistory } from '../lib/audit.js';
 import { uploadPublicSvg, uploadPrivateSvg, uploadArbitraryFile, getWebhookCredits } from '../lib/chainletter.js';
 import { extractCid, resolveIpfsCidToHttp } from '../lib/ipfs.js';
 import multer from 'multer';
@@ -560,58 +561,23 @@ export default function registerApiRoutes(app) {
         }
     });
 
-    // Audit log: dump all serial numbers, public registrations, and contests as a JSON file
+    // Audit history and generation
     app.get('/api/audit', requireAdmin, async (req, res) => {
         try {
-            const db = await getDb();
-            const serials = await db.all(`
-                SELECT id, sku, serial, item_name, item_description, photo_url, public_cid, created_at
-                FROM serial_numbers ORDER BY id ASC
-            `);
-            const registrations = await db.all(`
-                SELECT r.id, r.serial_id, s.sku, s.serial, r.owner_name, r.public_file_url, r.private_file_url, r.created_at, r.contested, r.contest_reason
-                FROM registrations r
-                JOIN serial_numbers s ON s.id = r.serial_id
-                ORDER BY r.id ASC
-            `);
-            const contests = registrations.filter(r => Number(r.contested) === 1);
-
-            const payload = {
-                generatedAt: new Date().toISOString(),
-                totals: {
-                    serials: serials.length,
-                    registrations: registrations.length,
-                    contests: contests.length
-                },
-                serial_numbers: serials,
-                public_registrations: registrations.map(r => ({
-                    id: r.id,
-                    serial_id: r.serial_id,
-                    sku: r.sku,
-                    serial: r.serial,
-                    owner_name: r.owner_name,
-                    public_file_url: r.public_file_url,
-                    created_at: r.created_at,
-                    contested: r.contested,
-                    contest_reason: r.contest_reason || null
-                })),
-                contests: contests.map(c => ({
-                    id: c.id,
-                    serial_id: c.serial_id,
-                    sku: c.sku,
-                    serial: c.serial,
-                    owner_name: c.owner_name,
-                    created_at: c.created_at,
-                    contest_reason: c.contest_reason || null
-                }))
-            };
-
-            const filename = `audit-${Date.now()}.json`;
-            res.setHeader('Content-Type', 'application/json');
-            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-            res.status(200).send(JSON.stringify(payload, null, 2));
+            const history = await getAuditHistory();
+            return ok(res, 'Audit history', { history });
         } catch (e) {
-            return bad(res, e.message);
+            return bad(res, e.message || 'Failed to load audit history');
+        }
+    });
+
+    app.post('/api/audit/generate', requireAdmin, async (req, res) => {
+        try {
+            const { record } = await createAuditProof({ source: 'manual' });
+            return ok(res, 'Audit generated', { audit: record });
+        } catch (e) {
+            const status = e?.response?.status || 500;
+            return res.status(status).json({ status: 'error', message: e?.message || 'Failed to generate audit' });
         }
     });
 }

@@ -9,6 +9,8 @@ import { initDb } from './lib/db.js';
 import registerApiRoutes from './routes/api.js';
 import cookieParser from 'cookie-parser';
 import { registerWorkosRoutes } from './lib/workos.js';
+import cron from 'node-cron';
+import { createAuditProof } from './lib/audit.js';
 
 dotenv.config();
 
@@ -36,6 +38,20 @@ registerApiRoutes(app);
 
 // Auth routes (WorkOS)
 registerWorkosRoutes(app);
+
+// Schedule daily audit proof at 5pm Eastern
+cron.schedule(
+  '0 17 * * *',
+  async () => {
+    try {
+      await createAuditProof({ source: 'cron', stampImmediately: true });
+      console.log('[audit] Daily audit proof generated at', new Date().toISOString());
+    } catch (err) {
+      console.error('[audit] Failed to generate daily audit proof', err?.message || err);
+    }
+  },
+  { timezone: 'America/New_York' }
+);
 
 // Serve Vite build (client/dist) in production only
 const clientDist = path.join(__dirname, '..', 'client', 'dist');

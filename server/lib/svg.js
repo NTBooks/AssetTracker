@@ -18,11 +18,29 @@ function escapeXml(value) {
 function tryRenderTemplate(templateName, data) {
   try {
     // Support either .svg or .xml template filenames
-    const baseDir = path.join(__dirname, '..', 'templates');
-    const candidatePaths = [
-      path.join(baseDir, `${templateName}.svg`),
-      path.join(baseDir, `${templateName}.xml`),
-    ];
+    // Check PERSIST_DIR first, then fall back to templates folder
+    // Resolve PERSIST_DIR relative to project root (__dirname is server/lib, so ../.. is project root)
+    const persistDir = process.env.PERSIST_DIR
+      ? path.resolve(__dirname, '..', '..', process.env.PERSIST_DIR)
+      : null;
+    const templatesDir = path.join(__dirname, '..', 'templates');
+
+    const candidatePaths = [];
+
+    // Add PERSIST_DIR paths first (checked first)
+    if (persistDir) {
+      candidatePaths.push(
+        path.join(persistDir, `${templateName}.xml`),
+        path.join(persistDir, `${templateName}.svg`)
+      );
+    }
+
+    // Add templates folder paths as fallback
+    candidatePaths.push(
+      path.join(templatesDir, `${templateName}.xml`),
+      path.join(templatesDir, `${templateName}.svg`)
+    );
+
     const existingPath = candidatePaths.find((p) => fs.existsSync(p));
     if (!existingPath) return null;
     let svg = fs.readFileSync(existingPath, 'utf8');

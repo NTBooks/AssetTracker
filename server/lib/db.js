@@ -1,4 +1,5 @@
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
@@ -17,7 +18,22 @@ export async function getDb() {
 
 export async function initDb() {
   if (dbInstance) return dbInstance;
-  const dbPath = process.env.SQLITE_PATH || path.join(__dirname, '..', '..', 'data.sqlite');
+  
+  // Determine database path based on PERSIST_DIR or SQLITE_PATH
+  let dbPath;
+  if (process.env.PERSIST_DIR) {
+    // Resolve relative to project root (__dirname is server/lib, so ../.. is project root)
+    // If PERSIST_DIR is absolute, it will be used as-is; if relative, it's relative to project root
+    const persistDir = path.resolve(__dirname, '..', '..', process.env.PERSIST_DIR);
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(persistDir)) {
+      fs.mkdirSync(persistDir, { recursive: true });
+    }
+    dbPath = path.join(persistDir, 'data.sqlite');
+  } else {
+    dbPath = process.env.SQLITE_PATH || path.join(__dirname, '..', '..', 'data.sqlite');
+  }
+  
   dbInstance = await open({ filename: dbPath, driver: sqlite3.Database });
 
   await dbInstance.exec(`
@@ -63,6 +79,16 @@ export async function initDb() {
       FOREIGN KEY (serial_id) REFERENCES serial_numbers(id) ON DELETE CASCADE,
       FOREIGN KEY (unlock_id) REFERENCES unlocks(id) ON DELETE SET NULL
     );
+
+    CREATE TABLE IF NOT EXISTS audit_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      filename TEXT NOT NULL,
+      cid TEXT,
+      url TEXT,
+      ipfs_uri TEXT,
+      source TEXT DEFAULT 'manual',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Backfill schema columns if database was created before these fields existed
@@ -74,6 +100,11 @@ export async function initDb() {
   try { await dbInstance.exec(`ALTER TABLE unlocks ADD COLUMN revoked_at DATETIME`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE registrations ADD COLUMN contest_reason TEXT`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE registrations ADD COLUMN owner_email TEXT`); } catch { }
+  try { await dbInstance.exec(`ALTER TABLE audit_history ADD COLUMN source TEXT DEFAULT 'manual'`); } catch { }
+  try { await dbInstance.exec(`ALTER TABLE audit_history ADD COLUMN cid TEXT`); } catch { }
+  try { await dbInstance.exec(`ALTER TABLE audit_history ADD COLUMN url TEXT`); } catch { }
+  try { await dbInstance.exec(`ALTER TABLE audit_history ADD COLUMN ipfs_uri TEXT`); } catch { }
+  try { await dbInstance.exec(`ALTER TABLE audit_history ADD COLUMN stamp_response TEXT`); } catch { }
 
   return dbInstance;
 }

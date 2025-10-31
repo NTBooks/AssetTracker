@@ -278,10 +278,10 @@ export default function Verify() {
             if (contestedRegs.length > 0) {
               return (
                 <div className="card card-danger p-4">
-                  <div className="text-white font-semibold mb-2">
+                  <div className="font-semibold mb-2">
                     Contested Registrations ({contestedRegs.length})
                   </div>
-                  <ul className="space-y-2 text-sm text-white/95">
+                  <ul className="space-y-2 text-sm">
                     {contestedRegs.map((r: any) => (
                       <li key={r.id}>
                         <span className="font-medium">

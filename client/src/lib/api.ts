@@ -159,3 +159,35 @@ export async function revokeTransfer(payload: {
   const { data } = await axios.post("/api/revoke", payload);
   return data.data as { proofCid?: string | null; proofUrl?: string | null };
 }
+
+export async function fetchAuditHistory() {
+  const { data } = await axios.get("/api/audit");
+  return data.data as {
+    history: Array<{
+      id: number;
+      filename: string;
+      cid: string | null;
+      url: string | null;
+      ipfsUri?: string | null;
+      source?: string | null;
+      stampResponse?: any;
+      createdAt: string;
+    }>;
+  };
+}
+
+export async function generateAuditProof() {
+  const { data } = await axios.post("/api/audit/generate");
+  return data.data as {
+    audit: {
+      id: number;
+      filename: string;
+      cid: string | null;
+      url: string | null;
+      ipfsUri?: string | null;
+      source?: string | null;
+      stampResponse?: any;
+      createdAt: string;
+    };
+  };
+}

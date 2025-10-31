@@ -49,11 +49,7 @@ export default function Layout() {
               <NavLink to="/create">Create Item</NavLink>
             ) : null}
             {auth.authenticated && auth.isAdmin ? (
-              <a
-                href="/api/audit"
-                className="px-4 py-2 rounded-full text-sm font-medium text-slate-600 transition-all hover:bg-autumn-50 hover:text-autumn-700">
-                Audit
-              </a>
+              <NavLink to="/audit">Audit</NavLink>
             ) : null}
             <NavLink to="/register">Register Asset</NavLink>
             <NavLink to="/verify">Verify</NavLink>
