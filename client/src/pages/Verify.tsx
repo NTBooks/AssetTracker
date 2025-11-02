@@ -269,8 +269,8 @@ export default function Verify() {
           Search
         </button>
       </div>
-      {/* Contested/Clean banner */}
-      {data
+      {/* Contested/Clean banner - only show if serial exists */}
+      {data && data.serial
         ? (() => {
             const contestedRegs = (data.registrations || []).filter((r: any) =>
               Number(r.contested)
@@ -319,6 +319,25 @@ export default function Verify() {
         <div className="grid md:grid-cols-2 gap-4">
           <SkeletonPanel title="Item" withImage lines={3} />
           <SkeletonPanel title="Original Certificate" withImage />
+        </div>
+      ) : data && !data.serial ? (
+        // Serial not found - show nice not found panel
+        <div className="card p-8">
+          <div className="flex flex-col items-center justify-center text-center">
+            <div className="mb-4 text-6xl">🔍</div>
+            <h3 className="mb-2 text-2xl font-semibold text-slate-800">
+              Serial Number Not Found
+            </h3>
+            <p className="text-slate-600">
+              The serial number{" "}
+              <span className="font-mono font-semibold">{serial}</span>{" "}
+              {singleSku ? "" : `for SKU ${sku} `}
+              could not be found in our records.
+            </p>
+            <p className="mt-2 text-sm text-slate-500">
+              Please check the serial number and try again.
+            </p>
+          </div>
         </div>
       ) : (
         (data?.serial?.public_cid || data?.serial?.photo_url) && (
@@ -416,7 +435,8 @@ export default function Verify() {
           <SkeletonList title="Registrations" items={3} />
         </>
       ) : (
-        data && (
+        data &&
+        data.serial && (
           <div className="space-y-4">
             <div
               className={`card p-4 ${
