@@ -11,6 +11,10 @@ type AppConfig = {
   loading: boolean;
   singleSku: string | null;
   contestReasons: string[];
+  clTenant: string;
+  ipfsGateway: string;
+  hideLogin: boolean;
+  timestampLink: string;
 };
 
 const ConfigContext = createContext<AppConfig | undefined>(undefined);
@@ -19,6 +23,10 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [singleSku, setSingleSku] = useState<string | null>(null);
   const [contestReasons, setContestReasons] = useState<string[]>([]);
+  const [clTenant, setClTenant] = useState<string>("lakeview.chaincart.io");
+  const [ipfsGateway, setIpfsGateway] = useState<string>("https://gateway.pinata.cloud/ipfs/:cid");
+  const [hideLogin, setHideLogin] = useState<boolean>(false);
+  const [timestampLink, setTimestampLink] = useState<string>("");
 
   useEffect(() => {
     let cancelled = false;
@@ -36,6 +44,10 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
             )
           : [];
         setContestReasons(reasons);
+        setClTenant(json?.data?.clTenant || "lakeview.chaincart.io");
+        setIpfsGateway(json?.data?.ipfsGateway || "https://gateway.pinata.cloud/ipfs/:cid");
+        setHideLogin(json?.data?.hideLogin === true);
+        setTimestampLink(json?.data?.timestampLink || "");
       })
       .catch(() => {})
       .finally(() => {
@@ -47,8 +59,8 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ loading, singleSku, contestReasons }),
-    [loading, singleSku, contestReasons]
+    () => ({ loading, singleSku, contestReasons, clTenant, ipfsGateway, hideLogin, timestampLink }),
+    [loading, singleSku, contestReasons, clTenant, ipfsGateway, hideLogin, timestampLink]
   );
   return (
     <ConfigContext.Provider value={value}>{children}</ConfigContext.Provider>

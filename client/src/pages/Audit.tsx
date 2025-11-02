@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { fetchAuditHistory, generateAuditProof } from "../lib/api";
 import { ClvTag } from "../lib/clv";
+import { useConfig } from "../lib/config";
 import {
   DocumentArrowDownIcon,
   ArrowPathIcon,
@@ -22,17 +23,16 @@ type AuditEntry = {
 
 export default function Audit() {
   const { authenticated, isAdmin } = useAuth();
+  const { timestampLink } = useConfig();
   const [loading, setLoading] = useState(true);
   const [history, setHistory] = useState<AuditEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [responseModal, setResponseModal] = useState<AuditEntry | null>(null);
 
-  const timestampLinkTemplate = (import.meta.env.VITE_TIMESTAMP_LINK as string) || "";
-
   const getTimestampUrl = () => {
-    if (!timestampLinkTemplate) return null;
-    return timestampLinkTemplate;
+    if (!timestampLink) return null;
+    return timestampLink;
   };
 
   const load = async () => {

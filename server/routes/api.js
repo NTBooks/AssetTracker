@@ -15,6 +15,31 @@ import { requireAdmin, getUserFromRequest } from '../lib/workos.js';
 const ok = (res, message, data) => res.status(200).json({ status: 'ok', message, data });
 const bad = (res, message, code = 400) => res.status(code).json({ status: 'error', message });
 
+// Helper function to check if IP logging is enabled
+function shouldLogIps() {
+    const logIps = process.env.LOG_IPS;
+    if (logIps === undefined || logIps === null) return true; // Default to logging if not set
+    return String(logIps).toLowerCase() !== 'false';
+}
+
+// Helper function to get client IP address from request
+function getClientIp(req) {
+    if (!shouldLogIps()) return null;
+    // Check for forwarded IP (from proxy/load balancer)
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+        // x-forwarded-for can contain multiple IPs, take the first one
+        const ips = forwarded.split(',').map(ip => ip.trim());
+        return ips[0] || null;
+    }
+    // Check req.ip (if Express trust proxy is configured)
+    if (req.ip) {
+        return req.ip;
+    }
+    // Fallback to connection remote address
+    return req.connection?.remoteAddress || req.socket?.remoteAddress || null;
+}
+
 export default function registerApiRoutes(app) {
     // Proxy IPFS file via webhook with server-side secret
     app.get('/api/ipfs/:cid', requireAdmin, async (req, res) => {
@@ -86,6 +111,10 @@ export default function registerApiRoutes(app) {
         return ok(res, 'Config', {
             singleSku: process.env.SINGLE_SKU || null,
             contestReasons: reasons,
+            clTenant: process.env.CL_TENANT || 'lakeview.chaincart.io',
+            ipfsGateway: process.env.IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/:cid',
+            hideLogin: String(process.env.HIDE_LOGIN || '').toLowerCase() === 'true',
+            timestampLink: process.env.TIMESTAMP_LINK || '',
         });
     });
 
@@ -161,7 +190,8 @@ export default function registerApiRoutes(app) {
             // Now persist to DB (store only CID for image if an IPFS URI or gateway URL was provided)
             const db = await getDb();
             const photoCid = extractCid(photoUrl);
-            await db.run('INSERT INTO serial_numbers (sku, serial, item_name, item_description, photo_url, public_cid, created_by_email) VALUES (?, ?, ?, ?, ?, ?, ?)', [sku, serial, itemName ?? null, itemDescription ?? null, photoCid ?? null, certUpload.cid ?? null, createdByEmail]);
+            const clientIp = getClientIp(req);
+            await db.run('INSERT INTO serial_numbers (sku, serial, item_name, item_description, photo_url, public_cid, created_by_email, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [sku, serial, itemName ?? null, itemDescription ?? null, photoCid ?? null, certUpload.cid ?? null, createdByEmail, clientIp]);
             const serialRow = await db.get('SELECT id FROM serial_numbers WHERE sku=? AND serial=?', [sku, serial]);
             const { hash, salt } = await hashSecret(secret);
             const result = await db.run('INSERT INTO unlocks (serial_id, secret_hash, salt, private_cid) VALUES (?, ?, ?, ?)', [serialRow.id, hash, salt, saleUpload.cid ?? null]);
@@ -263,7 +293,8 @@ export default function registerApiRoutes(app) {
                 await db.run('INSERT INTO unlocks (serial_id, secret_hash, salt, private_cid) VALUES (?, ?, ?, ?)', [serialRow.id, hash, salt, null]);
 
                 // Insert the registration now (public file URL updated after successful upload)
-                const regInsert = await db.run('INSERT INTO registrations (serial_id, owner_name, owner_email, public_file_url, private_file_url, unlock_id) VALUES (?, ?, ?, ?, ?, ?)', [serialRow.id, ownerName, ownerEmail, null, null, lastUnlock.id]);
+                const clientIp = getClientIp(req);
+                const regInsert = await db.run('INSERT INTO registrations (serial_id, owner_name, owner_email, public_file_url, private_file_url, unlock_id, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)', [serialRow.id, ownerName, ownerEmail, null, null, lastUnlock.id, clientIp]);
                 registrationId = regInsert.lastID;
 
                 const registrations = await db.all('SELECT id, owner_name, created_at FROM registrations WHERE serial_id=? ORDER BY id ASC', [serialRow.id]);

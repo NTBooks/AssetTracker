@@ -21,7 +21,7 @@ import { addRecentItem } from "../lib/recent";
 
 export default function Verify() {
   const location = useLocation();
-  const { singleSku, contestReasons } = useConfig();
+  const { singleSku, contestReasons, ipfsGateway } = useConfig();
   const [sku, setSku] = useState("");
   const [serial, setSerial] = useState("");
   const [data, setData] = useState<any>(null);
@@ -104,7 +104,7 @@ export default function Verify() {
 
   // Determine thumbnail orientation to pick a responsive layout
   useEffect(() => {
-    const url = toThumbFromUrlOrCid(data?.serial?.photo_url, 600);
+    const url = toThumbFromUrlOrCid(data?.serial?.photo_url, 600, ipfsGateway);
     if (!url) {
       setThumbOrientation(null);
       setThumbReady(false);
@@ -129,11 +129,11 @@ export default function Verify() {
       setThumbReady(true);
     };
     img.src = url;
-  }, [data?.serial?.photo_url]);
+  }, [data?.serial?.photo_url, ipfsGateway]);
 
   // Preload certificate thumbnail to drive skeleton state
   useEffect(() => {
-    const url = toThumbFromUrlOrCid(data?.serial?.public_cid, 300);
+    const url = toThumbFromUrlOrCid(data?.serial?.public_cid, 300, ipfsGateway);
     if (!url) {
       setCertReady(false);
       return;
@@ -143,7 +143,7 @@ export default function Verify() {
     img.onload = () => setCertReady(true);
     img.onerror = () => setCertReady(false);
     img.src = url;
-  }, [data?.serial?.public_cid]);
+  }, [data?.serial?.public_cid, ipfsGateway]);
 
   const onContest = async (registrationId: number) => {
     setContestModal({
@@ -353,6 +353,7 @@ export default function Verify() {
                         size={600}
                         alt="Item thumbnail"
                         className="h-48 w-full rounded border border-slate-200 object-cover"
+                        ipfsGateway={ipfsGateway}
                       />
                     </a>
                     <ItemMeta
@@ -372,6 +373,7 @@ export default function Verify() {
                         size={300}
                         alt="Item thumbnail"
                         className="h-40 w-40 rounded border border-slate-200 object-cover"
+                        ipfsGateway={ipfsGateway}
                       />
                     </a>
                     <ItemMeta
@@ -390,13 +392,17 @@ export default function Verify() {
                 <ClvLink
                   cid={data.serial.public_cid}
                   className="inline-block"
-                  href={resolveIpfsCidToHttp(data.serial.public_cid) || "#"}
+                  href={
+                    resolveIpfsCidToHttp(data.serial.public_cid, ipfsGateway) ||
+                    "#"
+                  }
                   target="_blank"
                   rel="noopener noreferrer">
                   <CidThumb
                     cid={data.serial.public_cid}
                     size={300}
                     className="max-h-64 rounded border border-slate-200"
+                    ipfsGateway={ipfsGateway}
                   />
                 </ClvLink>
               </div>
@@ -955,15 +961,16 @@ function CidThumb({
   cid,
   size: _size = 300,
   className,
+  ipfsGateway,
 }: {
   cid: string;
   size?: number;
   className?: string;
+  ipfsGateway: string;
 }) {
   const [idx, setIdx] = useState(0);
   const gateways = [
-    (import.meta.env.VITE_IPFS_GATEWAY as string) ||
-      "https://gateway.pinata.cloud/ipfs/:cid",
+    ipfsGateway,
     "https://cloudflare-ipfs.com/ipfs/:cid",
     "https://ipfs.io/ipfs/:cid",
   ];
@@ -984,18 +991,28 @@ function UrlOrCidThumb({
   size = 300,
   alt,
   className,
+  ipfsGateway,
 }: {
   urlOrCid: string;
   size?: number;
   alt: string;
   className?: string;
+  ipfsGateway: string;
 }) {
   const cid = extractCidFromUrlOrString(urlOrCid);
   const [attempt, setAttempt] = useState(0);
   if (cid) {
-    return <CidThumb cid={cid} size={size} className={className} />;
+    return (
+      <CidThumb
+        cid={cid}
+        size={size}
+        className={className}
+        ipfsGateway={ipfsGateway}
+      />
+    );
   }
-  const withParam = toThumbFromUrlOrCid(urlOrCid, size) || urlOrCid;
+  const withParam =
+    toThumbFromUrlOrCid(urlOrCid, size, ipfsGateway) || urlOrCid;
   const plain = urlOrCid;
   const src = attempt === 0 ? withParam : plain;
   return (

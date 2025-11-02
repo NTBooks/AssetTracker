@@ -1,6 +1,3 @@
-const CL_TENANT =
-  (import.meta.env.VITE_CL_TENANT as string) || "lakeview.chaincart.io";
-
 declare global {
   interface Window {
     CLVerify?: { scan: (root?: Element | Document) => void };
@@ -8,7 +5,7 @@ declare global {
   }
 }
 
-export async function ensureClVerifyScript(): Promise<void> {
+export async function ensureClVerifyScript(clTenant: string = "lakeview.chaincart.io"): Promise<void> {
   try {
     if (window.CLVerify && typeof window.CLVerify.scan === "function") return;
     const existing = document.querySelector(
@@ -20,7 +17,7 @@ export async function ensureClVerifyScript(): Promise<void> {
       if (window.__CLV_ALREADY_LOADED__) delete window.__CLV_ALREADY_LOADED__;
     } catch {}
     const s = document.createElement("script");
-    s.src = `https://${CL_TENANT}/widget/clverify.js?v=${Date.now()}`;
+    s.src = `https://${clTenant}/widget/clverify.js?v=${Date.now()}`;
     s.async = true;
     s.setAttribute("data-clverify", "1");
     document.head.appendChild(s);
@@ -33,8 +30,9 @@ export async function ensureClVerifyScript(): Promise<void> {
 }
 
 export async function initClVerify(
-  root: Element | Document = document.body
+  root: Element | Document = document.body,
+  clTenant: string = "lakeview.chaincart.io"
 ): Promise<MutationObserver | null> {
-  await ensureClVerifyScript();
+  await ensureClVerifyScript(clTenant);
   return null;
 }

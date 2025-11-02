@@ -13,9 +13,7 @@ export default function CreateItem() {
     login,
     refresh,
   } = useAuth();
-  const hideLogin =
-    String(import.meta.env.VITE_HIDE_LOGIN || "").toLowerCase() === "true";
-  const { singleSku } = useConfig();
+  const { singleSku, hideLogin } = useConfig();
   const [sku, setSku] = useState("");
   const [serial, setSerial] = useState("");
   const [itemName, setItemName] = useState("");
@@ -198,7 +196,9 @@ export default function CreateItem() {
   if (!authenticated || !isAdmin) {
     return (
       <div className="card p-6">
-        <h2 className="mb-2 text-xl font-semibold text-slate-800">Admins only</h2>
+        <h2 className="mb-2 text-xl font-semibold text-slate-800">
+          Admins only
+        </h2>
         <p className="mb-4 text-slate-500">
           You must be a logged-in admin to create items.
         </p>
@@ -215,7 +215,9 @@ export default function CreateItem() {
     <div className="space-y-6">
       {submittedMode === null ? (
         <div className="card p-6">
-          <h2 className="mb-4 text-2xl font-semibold text-slate-800">Create New Item</h2>
+          <h2 className="mb-4 text-2xl font-semibold text-slate-800">
+            Create New Item
+          </h2>
           <div className="space-y-3">
             <div>
               <label className={labelClass}>Item Name</label>
@@ -314,7 +316,9 @@ export default function CreateItem() {
             </div>
             {/* Bulk Create (sub-option) */}
             <div className="pt-6 mt-4 border-t border-slate-200">
-              <h3 className="mb-2 text-lg font-semibold text-slate-800">Bulk Create Range</h3>
+              <h3 className="mb-2 text-lg font-semibold text-slate-800">
+                Bulk Create Range
+              </h3>
               <p className="mb-3 text-sm text-slate-500">
                 Create many items with the same details. Serial numbers will be
                 numeric and padded with left zeros.
@@ -389,7 +393,8 @@ export default function CreateItem() {
                     />
                   </div>
                   <div className="mt-2 text-sm text-slate-500">
-                    {bulkDone}/{bulkTotal} • Success {bulkSuccess} • Failed {bulkFailed}
+                    {bulkDone}/{bulkTotal} • Success {bulkSuccess} • Failed{" "}
+                    {bulkFailed}
                   </div>
                   {bulkErrors.length > 0 && (
                     <div className="mt-2 max-h-40 overflow-auto rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-300">
@@ -481,14 +486,17 @@ export default function CreateItem() {
                 <div className="mb-2 text-slate-500">Running bulk create…</div>
               ) : (
                 <div className="mb-2 text-slate-700">
-                  Completed {bulkDone}/{bulkTotal} • Success {bulkSuccess} • Failed {bulkFailed}
+                  Completed {bulkDone}/{bulkTotal} • Success {bulkSuccess} •
+                  Failed {bulkFailed}
                 </div>
               )}
               <div className="h-3 w-full rounded bg-slate-200">
                 <div
                   className="h-3 rounded bg-autumn-500"
                   style={{
-                    width: bulkTotal ? `${Math.round((bulkDone / bulkTotal) * 100)}%` : "0%",
+                    width: bulkTotal
+                      ? `${Math.round((bulkDone / bulkTotal) * 100)}%`
+                      : "0%",
                   }}
                 />
               </div>

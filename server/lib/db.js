@@ -49,6 +49,7 @@ export async function initDb() {
       public_cid TEXT,
       created_by_email TEXT,
       pending_unlock_id INTEGER,
+      ip_address TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (sku, serial)
     );
@@ -72,6 +73,7 @@ export async function initDb() {
       owner_email TEXT,
       public_file_url TEXT,
       private_file_url TEXT,
+      ip_address TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       contested INTEGER DEFAULT 0,
       contest_reason TEXT,
@@ -105,6 +107,8 @@ export async function initDb() {
   try { await dbInstance.exec(`ALTER TABLE audit_history ADD COLUMN url TEXT`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE audit_history ADD COLUMN ipfs_uri TEXT`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE audit_history ADD COLUMN stamp_response TEXT`); } catch { }
+  try { await dbInstance.exec(`ALTER TABLE serial_numbers ADD COLUMN ip_address TEXT`); } catch { }
+  try { await dbInstance.exec(`ALTER TABLE registrations ADD COLUMN ip_address TEXT`); } catch { }
 
   return dbInstance;
 }

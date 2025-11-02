@@ -9,6 +9,7 @@ import {
 import { resolveIpfsCidToHttp, resolveIpfsThumb } from "../lib/ipfs";
 import { initClVerify } from "../lib/clverify";
 import { useAuth } from "../lib/auth";
+import { useConfig } from "../lib/config";
 import {
   ArrowUpTrayIcon,
   CheckCircleIcon,
@@ -73,6 +74,7 @@ export default function Layout() {
 }
 
 function RecentSidebar() {
+  const { singleSku } = useConfig();
   const [items, setItems] = useState<RecentItem[]>([]);
   useEffect(() => {
     setItems(getRecentItems());
@@ -87,6 +89,9 @@ function RecentSidebar() {
       clearRecentItems();
       setItems([]);
     }
+  };
+  const displayName = (sku: string, serial: string) => {
+    return singleSku ? serial : `${sku}/${serial}`;
   };
   return (
     <div className="card p-4">
@@ -113,7 +118,7 @@ function RecentSidebar() {
                   <Link
                     to={`/proof?cid=${encodeURIComponent(it.proofCid)}`}
                     className="font-mono text-sm text-autumn-700 underline decoration-autumn-400/60">
-                    Proof • {it.sku}/{it.serial}
+                    Proof • {displayName(it.sku, it.serial)}
                   </Link>
                 ) : (
                   <Link
@@ -121,7 +126,7 @@ function RecentSidebar() {
                       it.sku
                     )}&serial=${encodeURIComponent(it.serial)}`}
                     className="font-mono text-sm text-autumn-700 underline decoration-autumn-400/60">
-                    {it.sku}/{it.serial}
+                    {displayName(it.sku, it.serial)}
                   </Link>
                 )}
                 <div className="text-xs text-slate-500">
@@ -144,17 +149,17 @@ function RecentSidebar() {
 }
 
 function ClvBootstrap() {
+  const { clTenant } = useConfig();
   useEffect(() => {
-    initClVerify(document.body);
-  }, []);
+    initClVerify(document.body, clTenant);
+  }, [clTenant]);
   return null;
 }
 
 function AdminAuthButton() {
   const { loading, authenticated, userEmail, stampsCredits, login, logout } =
     useAuth();
-  const hideLogin =
-    String(import.meta.env.VITE_HIDE_LOGIN || "").toLowerCase() === "true";
+  const { hideLogin } = useConfig();
   if (hideLogin && !authenticated) return null;
   if (loading) {
     return hideLogin ? null : (
@@ -213,6 +218,7 @@ function ToastIcon({ type }: { type: string }) {
 }
 
 function EventsPanel() {
+  const { ipfsGateway } = useConfig();
   const [lines, setLines] = useState<EventLine[]>([]);
   useEffect(() => {
     const es = new EventSource("/api/events/stream");
@@ -220,7 +226,7 @@ function EventsPanel() {
       try {
         const obj = JSON.parse(ev.data);
         const cid = obj?.data?.hash || obj?.data?.cid;
-        const thumb = cid ? resolveIpfsThumb(cid, 300) || undefined : undefined;
+        const thumb = cid ? resolveIpfsThumb(cid, 300, ipfsGateway) || undefined : undefined;
         const line: EventLine = {
           id: String(obj?.id || crypto.randomUUID?.() || Date.now()),
           type: String(obj?.type || "event"),
@@ -299,6 +305,7 @@ function EventsPanel() {
 }
 
 function EventToasts() {
+  const { ipfsGateway } = useConfig();
   const [toasts, setToasts] = useState<EventLine[]>([]);
   const timers = (globalThis as any).__toastTimers || new Map<string, any>();
   (globalThis as any).__toastTimers = timers;
@@ -308,7 +315,7 @@ function EventToasts() {
       try {
         const obj = JSON.parse(ev.data);
         const cid = obj?.data?.hash || obj?.data?.cid;
-        const thumb = cid ? resolveIpfsCidToHttp(cid) : undefined;
+        const thumb = cid ? resolveIpfsCidToHttp(cid, ipfsGateway) : undefined;
         const line: EventLine = {
           id: String(obj?.id || crypto.randomUUID?.() || Date.now()),
           type: String(obj?.type || "event"),

@@ -1,30 +1,34 @@
-const DEFAULT_GATEWAY =
-  (import.meta.env.VITE_IPFS_GATEWAY as string) ??
-  "https://gateway.pinata.cloud/ipfs/:cid";
+const DEFAULT_GATEWAY = "https://gateway.pinata.cloud/ipfs/:cid";
 
-export function resolveIpfsCidToHttp(cid: string): string | null {
+export function resolveIpfsCidToHttp(
+  cid: string,
+  gateway?: string
+): string | null {
   if (!cid) return null;
-  return DEFAULT_GATEWAY.replace(":cid", cid);
+  const gate = gateway || DEFAULT_GATEWAY;
+  return gate.replace(":cid", cid);
 }
 
 export function resolveIpfsThumb(
   cid: string,
-  _size: number = 300
+  _size: number = 300,
+  gateway?: string
 ): string | null {
-  const base = resolveIpfsCidToHttp(cid);
+  const base = resolveIpfsCidToHttp(cid, gateway);
   if (!base) return null;
   return base;
 }
 
 export function toThumbFromUrlOrCid(
   urlOrCid?: string | null,
-  _size: number = 300
+  _size: number = 300,
+  gateway?: string
 ): string | null {
   if (!urlOrCid) return null;
   if (/^https?:\/\//i.test(urlOrCid)) {
     return urlOrCid;
   }
-  return resolveIpfsThumb(urlOrCid, _size);
+  return resolveIpfsThumb(urlOrCid, _size, gateway);
 }
 
 export function extractCidFromUrlOrString(
