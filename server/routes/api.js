@@ -267,7 +267,6 @@ export default function registerApiRoutes(app) {
             // Registration now only stamps the public certificate.
             // Transfers that create the next private sale doc are done via /api/transfer.
             const existingRegs = await db.all('SELECT id, owner_name, created_at FROM registrations WHERE serial_id=? ORDER BY id ASC', [serialRow.id]);
-            const isFirst = existingRegs.length === 0;
 
             let ownerEmail = null;
             try { ownerEmail = (await getUserFromRequest(req))?.email || null; } catch { }
@@ -276,8 +275,8 @@ export default function registerApiRoutes(app) {
             let historyText;
             let publicUpload;
             let registrationId;
-            let firstSaleSvg = null;
-            let firstSaleFilename = null;
+            let privateSaleSvg;
+            let privateSaleFilename;
             let committed = false;
 
             await db.run('BEGIN');
@@ -290,11 +289,13 @@ export default function registerApiRoutes(app) {
                 // Always issue a brand new next secret for the new owner, but do not start a transfer yet.
                 nextSecret = await generateSecret();
                 const { hash, salt } = await hashSecret(nextSecret);
-                await db.run('INSERT INTO unlocks (serial_id, secret_hash, salt, private_cid) VALUES (?, ?, ?, ?)', [serialRow.id, hash, salt, null]);
+                const ownerUnlockInsert = await db.run('INSERT INTO unlocks (serial_id, secret_hash, salt, private_cid) VALUES (?, ?, ?, ?)', [serialRow.id, hash, salt, null]);
+                const ownerUnlockId = ownerUnlockInsert.lastID;
 
                 // Insert the registration now (public file URL updated after successful upload)
+                // unlock_id = secret used to unlock/register, owner_unlock_id = secret generated for the owner (for proofs/reports)
                 const clientIp = getClientIp(req);
-                const regInsert = await db.run('INSERT INTO registrations (serial_id, owner_name, owner_email, public_file_url, private_file_url, unlock_id, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)', [serialRow.id, ownerName, ownerEmail, null, null, lastUnlock.id, clientIp]);
+                const regInsert = await db.run('INSERT INTO registrations (serial_id, owner_name, owner_email, public_file_url, private_file_url, unlock_id, owner_unlock_id, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [serialRow.id, ownerName, ownerEmail, null, null, lastUnlock.id, ownerUnlockId, clientIp]);
                 registrationId = regInsert.lastID;
 
                 const registrations = await db.all('SELECT id, owner_name, created_at FROM registrations WHERE serial_id=? ORDER BY id ASC', [serialRow.id]);
@@ -309,10 +310,11 @@ export default function registerApiRoutes(app) {
 
                 await db.run('UPDATE registrations SET public_file_url=? WHERE id=?', [publicUpload.url, registrationId]);
 
-                if (isFirst) {
-                    firstSaleSvg = generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret, historyText });
-                    firstSaleFilename = `sale-${sku}-${serial}.svg`;
-                }
+                // Always generate a private sale SVG with the new secret for the new owner
+                // This ensures the new owner receives a document with their registration secret
+                // that only they know (the transfer secret is consumed and Owner A never sees this new secret)
+                privateSaleSvg = generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret, historyText });
+                privateSaleFilename = `sale-${sku}-${serial}.svg`;
 
                 await db.run('COMMIT');
                 committed = true;
@@ -335,7 +337,8 @@ export default function registerApiRoutes(app) {
                 registrationId,
                 publicUrl: publicUpload.url,
                 nextSecret,
-                ...(isFirst ? { filename: firstSaleFilename, svg: firstSaleSvg } : {})
+                filename: privateSaleFilename,
+                svg: privateSaleSvg
             });
         } catch (e) {
             return bad(res, e.message);
@@ -368,11 +371,23 @@ export default function registerApiRoutes(app) {
             const okKey = await verifySecret(secret, lastUnlock.secret_hash);
             if (!okKey) return bad(res, 'Invalid key', 403);
 
-            // Upload private sale doc using the current owner's active secret provided here
+            // Generate a NEW secret specifically for this transfer
+            // This secret will be used by Owner B to complete the transfer
+            // If the transfer is revoked, this secret (not Owner A's current secret) will be revoked
+            const transferSecret = await generateSecret();
+            const { hash: transferSecretHash, salt: transferSecretSalt } = await hashSecret(transferSecret);
+
+            // Create a new unlock record for the transfer secret
+            const transferUnlockInsert = await db.run('INSERT INTO unlocks (serial_id, secret_hash, salt, private_cid) VALUES (?, ?, ?, ?)', [serialRow.id, transferSecretHash, transferSecretSalt, null]);
+            const transferUnlockId = transferUnlockInsert.lastID;
+
+            // Upload private sale doc with the NEW transfer secret
+            // Note: Both Owner A and Owner B will know this transfer secret since Owner A sends the document to Owner B
+            // Owner B will receive a NEW registration secret when they complete registration (only they will know it)
             const registrations = await db.all('SELECT id, owner_name, created_at FROM registrations WHERE serial_id=? ORDER BY id ASC', [serialRow.id]);
             const focusId = registrations.length ? registrations[registrations.length - 1].id : null;
             const historyText = buildRegistrationHistoryText({ sku, serial, registrations, focusedRegistrationId: focusId, phrase: 'N/A' });
-            const saleSvg = generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret: secret, historyText });
+            const saleSvg = generatePrivateSaleSvg({ sku, serial, ownerName, nextSecret: transferSecret, historyText });
             let saleUpload;
             try {
                 saleUpload = await uploadPrivateSvg(`sale-${sku}-${serial}.svg`, saleSvg, 'RWA Files (private)', { stampImmediately: true });
@@ -382,9 +397,9 @@ export default function registerApiRoutes(app) {
                 return res.status(statusCode).json({ status: 'error', message: `Chainletter upload failed: ${msg}` });
             }
             if (!saleUpload?.cid) return bad(res, 'Upload failed', 502);
-            // Attach the sale doc to the existing active unlock and mark as pending
-            await db.run('UPDATE unlocks SET private_cid=? WHERE id=?', [saleUpload.cid ?? null, lastUnlock.id]);
-            await db.run('UPDATE serial_numbers SET pending_unlock_id=? WHERE id=?', [lastUnlock.id, serialRow.id]);
+            // Attach the sale doc to the NEW transfer unlock and mark as pending
+            await db.run('UPDATE unlocks SET private_cid=? WHERE id=?', [saleUpload.cid ?? null, transferUnlockId]);
+            await db.run('UPDATE serial_numbers SET pending_unlock_id=? WHERE id=?', [transferUnlockId, serialRow.id]);
 
             // Attach email to latest registration if missing and user is logged in
             const latestReg = await db.get('SELECT id, owner_email FROM registrations WHERE serial_id=? ORDER BY id DESC LIMIT 1', [serialRow.id]);
@@ -420,7 +435,8 @@ export default function registerApiRoutes(app) {
             if (!serialRow.pending_unlock_id) return bad(res, 'No pending transfer to revoke', 400);
 
             // Verify with the current owner's active (non-revoked) registration secret
-            const activeUnlock = await db.get('SELECT id, secret_hash FROM unlocks WHERE serial_id=? AND COALESCE(revoked,0)=0 ORDER BY id DESC LIMIT 1', [serialRow.id]);
+            // Exclude the pending unlock (transfer secret) - we want Owner A's original secret
+            const activeUnlock = await db.get('SELECT id, secret_hash FROM unlocks WHERE serial_id=? AND COALESCE(revoked,0)=0 AND id!=? ORDER BY id DESC LIMIT 1', [serialRow.id, serialRow.pending_unlock_id]);
             if (!activeUnlock) return bad(res, 'No active key for this serial', 400);
             const okKey = await verifySecret(secret, activeUnlock.secret_hash);
             if (!okKey) return bad(res, 'Invalid key', 403);
@@ -483,12 +499,20 @@ export default function registerApiRoutes(app) {
             const reason = reasonRaw;
             if (!registrationId || !secret) return bad(res, 'Missing fields');
             const db = await getDb();
-            const reg = await db.get('SELECT id, serial_id, owner_email FROM registrations WHERE id=?', [registrationId]);
+            const reg = await db.get('SELECT id, serial_id, unlock_id, owner_unlock_id, owner_email FROM registrations WHERE id=?', [registrationId]);
             if (!reg) return bad(res, 'Registration not found', 404);
-            // Validate against newest active key for this serial (current owner's key)
-            const activeUnlock = await db.get('SELECT id, secret_hash FROM unlocks WHERE serial_id=? AND COALESCE(revoked,0)=0 ORDER BY id DESC LIMIT 1', [reg.serial_id]);
-            if (!activeUnlock) return bad(res, 'No active key for this registration', 403);
-            const okKey = await verifySecret(secret, activeUnlock.secret_hash);
+            // Contests/reports must use the secret that was generated for the owner when they registered
+            // This is the owner_unlock_id (the nextSecret given to the owner), not the unlock_id (transfer/initial secret)
+            let ownerUnlock = null;
+            if (reg.owner_unlock_id) {
+                ownerUnlock = await db.get('SELECT id, secret_hash FROM unlocks WHERE id=?', [reg.owner_unlock_id]);
+            } else {
+                // Fallback for old registrations: find the unlock created right after this registration's unlock_id
+                // This should be the nextSecret that was generated for the owner
+                ownerUnlock = await db.get('SELECT id, secret_hash FROM unlocks WHERE serial_id=? AND id > ? ORDER BY id ASC LIMIT 1', [reg.serial_id, reg.unlock_id]);
+            }
+            if (!ownerUnlock) return bad(res, 'Owner unlock not found', 403);
+            const okKey = await verifySecret(secret, ownerUnlock.secret_hash);
             if (!okKey) return bad(res, 'Invalid key', 403);
             if (!reg.owner_email) {
                 const u = await getUserFromRequest(req);
@@ -515,12 +539,20 @@ export default function registerApiRoutes(app) {
             if (!registrationId || !sku || !serial || !phrase || !secret) return bad(res, 'Missing fields');
 
             const db = await getDb();
-            const reg = await db.get('SELECT id, owner_name, unlock_id, owner_email, created_at, serial_id FROM registrations WHERE id=?', [registrationId]);
+            const reg = await db.get('SELECT id, owner_name, unlock_id, owner_unlock_id, owner_email, created_at, serial_id FROM registrations WHERE id=?', [registrationId]);
             if (!reg) return bad(res, 'Registration not found', 404);
-            // Use the newest active (non-revoked) unlock for this serial – current owner's key
-            const activeUnlock = await db.get('SELECT id, secret_hash FROM unlocks WHERE serial_id=? AND COALESCE(revoked,0)=0 ORDER BY id DESC LIMIT 1', [reg.serial_id]);
-            if (!activeUnlock) return bad(res, 'No active key for this registration', 403);
-            const okKey = await verifySecret(secret, activeUnlock.secret_hash);
+            // Proofs must use the secret that was generated for the owner when they registered
+            // This is the owner_unlock_id (the nextSecret given to the owner), not the unlock_id (transfer/initial secret)
+            let ownerUnlock = null;
+            if (reg.owner_unlock_id) {
+                ownerUnlock = await db.get('SELECT id, secret_hash FROM unlocks WHERE id=?', [reg.owner_unlock_id]);
+            } else {
+                // Fallback for old registrations: find the unlock created right after this registration's unlock_id
+                // This should be the nextSecret that was generated for the owner
+                ownerUnlock = await db.get('SELECT id, secret_hash FROM unlocks WHERE serial_id=? AND id > ? ORDER BY id ASC LIMIT 1', [reg.serial_id, reg.unlock_id]);
+            }
+            if (!ownerUnlock) return bad(res, 'Owner unlock not found', 403);
+            const okKey = await verifySecret(secret, ownerUnlock.secret_hash);
             if (!okKey) return bad(res, 'Invalid key', 403);
 
             // Attach current user's email to registration if not set

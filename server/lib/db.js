@@ -96,6 +96,7 @@ export async function initDb() {
   // Backfill schema columns if database was created before these fields existed
   try { await dbInstance.exec(`ALTER TABLE serial_numbers ADD COLUMN public_cid TEXT`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE serial_numbers ADD COLUMN created_by_email TEXT`); } catch { }
+  try { await dbInstance.exec(`ALTER TABLE registrations ADD COLUMN owner_unlock_id INTEGER`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE serial_numbers ADD COLUMN pending_unlock_id INTEGER`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE unlocks ADD COLUMN private_cid TEXT`); } catch { }
   try { await dbInstance.exec(`ALTER TABLE unlocks ADD COLUMN revoked INTEGER DEFAULT 0`); } catch { }

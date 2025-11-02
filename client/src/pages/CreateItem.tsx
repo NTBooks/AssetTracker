@@ -40,6 +40,7 @@ export default function CreateItem() {
     null
   );
   const [certReady, setCertReady] = useState(false);
+  const [bulkMode, setBulkMode] = useState(false);
 
   const labelClass =
     "block text-xs font-semibold tracking-[0.08em] uppercase text-slate-600 mb-2";
@@ -215,9 +216,40 @@ export default function CreateItem() {
     <div className="space-y-6">
       {submittedMode === null ? (
         <div className="card p-6">
-          <h2 className="mb-4 text-2xl font-semibold text-slate-800">
-            Create New Item
-          </h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-2xl font-semibold text-slate-800">
+              Create New Item
+            </h2>
+            <div className="flex items-center gap-3">
+              <span
+                className={`text-sm ${
+                  !bulkMode ? "text-slate-800 font-medium" : "text-slate-500"
+                }`}>
+                Single
+              </span>
+              <button
+                type="button"
+                onClick={() => setBulkMode(!bulkMode)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-autumn-500 focus:ring-offset-2 ${
+                  bulkMode ? "bg-autumn-500" : "bg-slate-300"
+                }`}
+                role="switch"
+                aria-checked={bulkMode}
+                aria-label="Toggle bulk mode">
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out ${
+                    bulkMode ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+              <span
+                className={`text-sm ${
+                  bulkMode ? "text-slate-800 font-medium" : "text-slate-500"
+                }`}>
+                Bulk
+              </span>
+            </div>
+          </div>
           <div className="space-y-3">
             <div>
               <label className={labelClass}>Item Name</label>
@@ -271,61 +303,16 @@ export default function CreateItem() {
                 ) : null}
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2 items-end">
-              {singleSku ? null : (
-                <div className="col-span-1">
-                  <label className={labelClass}>SKU</label>
-                  <input
-                    className="input"
-                    value={sku}
-                    onChange={(e) => setSku(e.target.value)}
-                  />
-                </div>
-              )}
-              <div className={singleSku ? "col-span-3" : "col-span-2"}>
-                <label className={labelClass}>Serial</label>
-                <input
-                  className="input"
-                  value={serial}
-                  onChange={(e) => setSerial(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={onGenerate}
-                className="btn-outline"
-                type="button">
-                Generate New Serial
-              </button>
-              <button
-                onClick={onCreate}
-                className="btn"
-                disabled={!sku || !serial || loading}
-                type="button">
-                Create
-              </button>
-              {TESTMODE && (
-                <button
-                  onClick={onFillMock}
-                  className="btn-outline"
-                  type="button">
-                  Fill Mock Data
-                </button>
-              )}
-            </div>
-            {/* Bulk Create (sub-option) */}
-            <div className="pt-6 mt-4 border-t border-slate-200">
-              <h3 className="mb-2 text-lg font-semibold text-slate-800">
-                Bulk Create Range
-              </h3>
-              <p className="mb-3 text-sm text-slate-500">
-                Create many items with the same details. Serial numbers will be
-                numeric and padded with left zeros.
-              </p>
-              <div className="grid md:grid-cols-3 gap-3 mb-3">
+            {/* Single Mode Fields */}
+            <div
+              className={`transition-all duration-300 ease-in-out ${
+                bulkMode
+                  ? "max-h-0 opacity-0 overflow-hidden pointer-events-none"
+                  : "max-h-[1000px] opacity-100"
+              }`}>
+              <div className="grid grid-cols-3 gap-2 items-end">
                 {singleSku ? null : (
-                  <div>
+                  <div className="col-span-1">
                     <label className={labelClass}>SKU</label>
                     <input
                       className="input"
@@ -334,79 +321,140 @@ export default function CreateItem() {
                     />
                   </div>
                 )}
-                <div>
-                  <label className={labelClass}>Start</label>
+                <div className={singleSku ? "col-span-3" : "col-span-2"}>
+                  <label className={labelClass}>Serial</label>
                   <input
                     className="input"
-                    type="number"
-                    value={rangeStart}
-                    onChange={(e) => setRangeStart(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>End</label>
-                  <input
-                    className="input"
-                    type="number"
-                    value={rangeEnd}
-                    onChange={(e) => setRangeEnd(e.target.value)}
+                    value={serial}
+                    onChange={(e) => setSerial(e.target.value)}
                   />
                 </div>
               </div>
-              <div className="grid md:grid-cols-3 gap-3 mb-3">
-                <div className="md:col-span-1">
-                  <label className={labelClass}>Decimals (pad)</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min={0}
-                    value={rangeDecimals}
-                    onChange={(e) => setRangeDecimals(e.target.value)}
-                  />
-                </div>
-                <div className="md:col-span-2 flex items-end">
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  onClick={onGenerate}
+                  className="btn-outline"
+                  type="button">
+                  Generate New Serial
+                </button>
+                <button
+                  onClick={onCreate}
+                  className="btn"
+                  disabled={!sku || !serial || loading}
+                  type="button">
+                  Create
+                </button>
+                {TESTMODE && (
                   <button
-                    className="btn"
-                    type="button"
-                    onClick={onBulkCreate}
-                    disabled={
-                      bulkRunning ||
-                      !(singleSku || sku) ||
-                      !rangeStart ||
-                      !rangeEnd ||
-                      !itemName ||
-                      !itemDescription ||
-                      !(ipfsPhotoUri || photoUrl)
-                    }>
-                    Start Bulk Create
+                    onClick={onFillMock}
+                    className="btn-outline"
+                    type="button">
+                    Fill Mock Data
                   </button>
-                </div>
+                )}
               </div>
-              {bulkTotal > 0 && (
-                <div className="mt-3">
-                  <div className="h-3 w-full rounded bg-slate-200">
-                    <div
-                      className="h-3 rounded bg-autumn-500"
-                      style={{
-                        width: `${Math.round((bulkDone / bulkTotal) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <div className="mt-2 text-sm text-slate-500">
-                    {bulkDone}/{bulkTotal} • Success {bulkSuccess} • Failed{" "}
-                    {bulkFailed}
-                  </div>
-                  {bulkErrors.length > 0 && (
-                    <div className="mt-2 max-h-40 overflow-auto rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-300">
-                      {bulkErrors.map((e, i) => (
-                        <div key={i}>
-                          Serial {e.serial}: {e.message}
-                        </div>
-                      ))}
+            </div>
+
+            {/* Bulk Mode Fields */}
+            <div
+              className={`transition-all duration-300 ease-in-out ${
+                !bulkMode
+                  ? "max-h-0 opacity-0 overflow-hidden pointer-events-none"
+                  : "max-h-[1000px] opacity-100"
+              }`}>
+              <div className="pt-4 border-t border-slate-200">
+                <h3 className="mb-2 text-lg font-semibold text-slate-800">
+                  Bulk Create Range
+                </h3>
+                <p className="mb-3 text-sm text-slate-500">
+                  Create many items with the same details. Serial numbers will
+                  be numeric and padded with left zeros.
+                </p>
+                <div className="grid md:grid-cols-3 gap-3 mb-3">
+                  {singleSku ? null : (
+                    <div>
+                      <label className={labelClass}>SKU</label>
+                      <input
+                        className="input"
+                        value={sku}
+                        onChange={(e) => setSku(e.target.value)}
+                      />
                     </div>
                   )}
+                  <div>
+                    <label className={labelClass}>Start</label>
+                    <input
+                      className="input"
+                      type="number"
+                      value={rangeStart}
+                      onChange={(e) => setRangeStart(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>End</label>
+                    <input
+                      className="input"
+                      type="number"
+                      value={rangeEnd}
+                      onChange={(e) => setRangeEnd(e.target.value)}
+                    />
+                  </div>
                 </div>
-              )}
+                <div className="grid md:grid-cols-3 gap-3 mb-3">
+                  <div className="md:col-span-1">
+                    <label className={labelClass}>Decimals (pad)</label>
+                    <input
+                      className="input"
+                      type="number"
+                      min={0}
+                      value={rangeDecimals}
+                      onChange={(e) => setRangeDecimals(e.target.value)}
+                    />
+                  </div>
+                  <div className="md:col-span-2 flex items-end">
+                    <button
+                      className="btn"
+                      type="button"
+                      onClick={onBulkCreate}
+                      disabled={
+                        bulkRunning ||
+                        !(singleSku || sku) ||
+                        !rangeStart ||
+                        !rangeEnd ||
+                        !itemName ||
+                        !itemDescription ||
+                        !(ipfsPhotoUri || photoUrl)
+                      }>
+                      Start Bulk Create
+                    </button>
+                  </div>
+                </div>
+                {bulkTotal > 0 && (
+                  <div className="mt-3">
+                    <div className="h-3 w-full rounded bg-slate-200">
+                      <div
+                        className="h-3 rounded bg-autumn-500"
+                        style={{
+                          width: `${Math.round((bulkDone / bulkTotal) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                    <div className="mt-2 text-sm text-slate-500">
+                      {bulkDone}/{bulkTotal} • Success {bulkSuccess} • Failed{" "}
+                      {bulkFailed}
+                    </div>
+                    {bulkErrors.length > 0 && (
+                      <div className="mt-2 max-h-40 overflow-auto rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-300">
+                        {bulkErrors.map((e, i) => (
+                          <div key={i}>
+                            Serial {e.serial}: {e.message}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
