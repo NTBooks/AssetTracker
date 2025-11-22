@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import {
   contestRegistration,
@@ -18,6 +18,7 @@ import { ClvLink, ClvTag } from "../lib/clv";
 import { useConfig } from "../lib/config";
 import { formatLocalDateTime } from "../lib/datetime";
 import { addRecentItem } from "../lib/recent";
+import { EllipsisVerticalIcon } from "@heroicons/react/24/outline";
 
 export default function Verify() {
   const location = useLocation();
@@ -60,6 +61,8 @@ export default function Verify() {
     loading: boolean;
     error?: string;
   }>({ open: false, secret: "", loading: false });
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const menuRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
   const labelClass =
     "block text-xs font-semibold tracking-[0.08em] uppercase text-slate-600 mb-2";
@@ -144,6 +147,25 @@ export default function Verify() {
     img.onerror = () => setCertReady(false);
     img.src = url;
   }, [data?.serial?.public_cid, ipfsGateway]);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openMenuId !== null) {
+        const menuElement = menuRefs.current[openMenuId];
+        if (menuElement && !menuElement.contains(event.target as Node)) {
+          setOpenMenuId(null);
+        }
+      }
+    };
+
+    if (openMenuId !== null) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }
+  }, [openMenuId]);
 
   const onContest = async (registrationId: number) => {
     setContestModal({
@@ -480,67 +502,105 @@ export default function Verify() {
                   registration secret to make changes.
                 </p>
                 <ul className="divide-y divide-slate-200">
-                  {(data.registrations ?? []).map((r: any, idx: number) => (
-                    <li
-                      key={r.id}
-                      className="flex items-center justify-between py-3">
-                      <div>
-                        <div className="font-medium">{r.owner_name}</div>
-                        <div className="text-sm text-slate-500">
-                          {formatLocalDateTime(r.created_at)}
+                  {(data.registrations ?? []).map((r: any, idx: number) => {
+                    const isLastRegistration =
+                      idx === (data.registrations?.length || 0) - 1;
+                    const isMenuOpen = openMenuId === r.id;
+
+                    return (
+                      <li
+                        key={r.id}
+                        className="flex flex-col md:flex-row md:items-center md:justify-between py-3 gap-3 md:gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium">{r.owner_name}</div>
+                          <div className="text-sm text-slate-500">
+                            {formatLocalDateTime(r.created_at)}
+                          </div>
+                          {r.contested ? (
+                            <span className="ml-2 text-sm text-red-500">
+                              Contested
+                            </span>
+                          ) : null}
                         </div>
-                        {r.public_file_url && (
-                          <div className="flex items-center gap-2">
-                            <a
-                              className="text-autumn-700 underline decoration-autumn-400/60"
-                              href={r.public_file_url}
-                              target="_blank">
-                              Public file
-                            </a>
-                            {extractCidFromUrlOrString(r.public_file_url) ? (
+
+                        {/* ClvTag and Menu toggle */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {r.public_file_url &&
+                            extractCidFromUrlOrString(r.public_file_url) && (
                               <ClvTag
                                 cid={
                                   extractCidFromUrlOrString(r.public_file_url)!
                                 }
                               />
-                            ) : null}
+                            )}
+                          <div
+                            className="relative inline-block"
+                            ref={(el: HTMLDivElement | null) =>
+                              (menuRefs.current[r.id] = el)
+                            }>
+                            <button
+                              className="p-2 rounded-lg border border-slate-300 hover:bg-slate-50 transition-colors"
+                              onClick={() =>
+                                setOpenMenuId(isMenuOpen ? null : r.id)
+                              }
+                              aria-label="Actions menu">
+                              <EllipsisVerticalIcon className="h-5 w-5 text-slate-600" />
+                            </button>
+                            {isMenuOpen && (
+                              <div className="absolute right-0 top-full mt-1 w-48 md:w-56 bg-white rounded-lg border border-slate-200 shadow-lg z-10 py-1">
+                                {r.public_file_url && (
+                                  <a
+                                    href={r.public_file_url}
+                                    target="_blank"
+                                    className="block w-full text-left px-4 py-2 md:py-2.5 text-sm md:font-medium text-autumn-700 hover:bg-autumn-50 transition-colors"
+                                    onClick={() => setOpenMenuId(null)}>
+                                    Public file
+                                  </a>
+                                )}
+                                <button
+                                  className="w-full text-left px-4 py-2 md:py-2.5 text-sm md:font-medium text-red-600 hover:bg-red-50 transition-colors"
+                                  onClick={() => {
+                                    onContest(r.id);
+                                    setOpenMenuId(null);
+                                  }}>
+                                  Report
+                                </button>
+                                <button
+                                  className="w-full text-left px-4 py-2 md:py-2.5 text-sm md:font-medium text-autumn-700 hover:bg-autumn-50 transition-colors"
+                                  onClick={() => {
+                                    onCreateProof(r.id);
+                                    setOpenMenuId(null);
+                                  }}>
+                                  Create proof
+                                </button>
+                                {isLastRegistration ? (
+                                  data.serial?.pending_unlock_id ? (
+                                    <button
+                                      className="w-full text-left px-4 py-2 md:py-2.5 text-sm md:font-medium text-red-600 hover:bg-red-50 transition-colors"
+                                      onClick={() => {
+                                        onOpenRevoke();
+                                        setOpenMenuId(null);
+                                      }}>
+                                      Revoke
+                                    </button>
+                                  ) : (
+                                    <button
+                                      className="w-full text-left px-4 py-2 md:py-2.5 text-sm md:font-medium text-autumn-700 hover:bg-autumn-50 transition-colors"
+                                      onClick={() => {
+                                        onOpenTransfer();
+                                        setOpenMenuId(null);
+                                      }}>
+                                      Transfer
+                                    </button>
+                                  )
+                                ) : null}
+                              </div>
+                            )}
                           </div>
-                        )}
-                        {r.contested ? (
-                          <span className="ml-2 text-sm text-red-500">
-                            Contested
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          className="btn-danger"
-                          onClick={() => onContest(r.id)}>
-                          Report
-                        </button>
-                        <button
-                          className="btn"
-                          onClick={() => onCreateProof(r.id)}>
-                          Create proof
-                        </button>
-                        {idx === (data.registrations?.length || 0) - 1 ? (
-                          data.serial?.pending_unlock_id ? (
-                            <button
-                              className="btn-danger"
-                              onClick={onOpenRevoke}>
-                              Revoke
-                            </button>
-                          ) : (
-                            <button
-                              className="btn-outline"
-                              onClick={onOpenTransfer}>
-                              Transfer
-                            </button>
-                          )
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             ) : null}
@@ -747,7 +807,7 @@ export default function Verify() {
                 setTransferModal((m) => ({ ...m, secret: e.target.value }))
               }
             />
-            <label className={labelClass}>Your Name (optional)</label>
+            <label className={labelClass}>Recipient Name</label>
             <input
               className="input mb-4"
               value={transferModal.ownerName}

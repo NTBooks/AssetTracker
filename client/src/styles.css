@@ -116,3 +116,13 @@ a:hover {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 148, 212, 0.55);
 }
+
+/* clverify widget styles */
+.clv-issuer a,
+.clv-link {
+  color: white !important;
+}
+.clv-issuer a:hover,
+.clv-link:hover {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
