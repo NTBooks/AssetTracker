@@ -7,7 +7,7 @@
         "dev": "cross-env NODE_ENV=development FREEMODE=true concurrently \"npm:dev:server\" \"npm:dev:client\"",
         "dev:server": "nodemon server/index.js",
         "dev:client": "npm --prefix client run dev",
-        "build": "npm run build:theme && npm --prefix client run build",
+        "build": "npm run build:theme && npm --prefix client ci && npm --prefix client run build",
         "build:theme": "node scripts/build-theme.mjs",
         "start": "node server/index.js",
         "install:client": "npm --prefix client install"
