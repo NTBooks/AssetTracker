@@ -53,22 +53,31 @@ cron.schedule(
   { timezone: 'America/New_York' }
 );
 
-// Serve Vite build (client/dist) in production only
+// Serve Vite build (client/dist) if it exists
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
-const isProd = process.env.NODE_ENV === 'production';
 const distIndex = path.join(clientDist, 'index.html');
-if (isProd && fs.existsSync(distIndex)) {
-    app.use(express.static(clientDist));
-    app.get('*', (req, res) => {
-        res.sendFile(distIndex);
-    });
+const distExists = fs.existsSync(distIndex);
+
+if (distExists) {
+  // Serve static files from the dist directory
+  app.use(express.static(clientDist, { index: false }));
+
+  // SPA fallback: serve index.html for all non-API routes
+  // This must be last, after all API routes
+  app.get('*', (req, res) => {
+    // Only serve index.html for routes that aren't API/auth routes
+    // API routes are already handled above, so this catch-all is safe
+    res.sendFile(distIndex);
+  });
+  console.log(`Serving React app from ${clientDist}`);
 } else {
-    console.log('Development mode: serving API only. Use Vite dev server at http://localhost:5173');
+  console.warn(`React build not found at ${distIndex}. Serving API only.`);
+  console.warn('Make sure to run "npm run build" before starting the server in production.');
 }
 
 const port = process.env.PORT || 5174;
 app.listen(port, () => {
-    console.log(`Server listening on http://localhost:${port}`);
+  console.log(`Server listening on http://localhost:${port}`);
 });
 
 
