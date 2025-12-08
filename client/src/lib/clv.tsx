@@ -12,7 +12,7 @@ export function ClvLink({ cid, ...props }: ClvLinkProps) {
       (window as any).CLVerify && (window as any).CLVerify.scan(document.body);
     } catch {}
   }, [cid]);
-  return <a {...props} cid={cid} api={clTenant} mode="dark" />;
+  return <a {...props} {...({ cid, api: clTenant, mode: "dark" } as any)} />;
 }
 
 type ClvTagProps = React.HTMLAttributes<HTMLElement> & {

@@ -535,9 +535,9 @@ export default function Verify() {
                             )}
                           <div
                             className="relative inline-block"
-                            ref={(el: HTMLDivElement | null) =>
-                              (menuRefs.current[r.id] = el)
-                            }>
+                            ref={(el: HTMLDivElement | null) => {
+                              menuRefs.current[r.id] = el;
+                            }}>
                             <button
                               className="p-2 rounded-lg border border-slate-300 hover:bg-slate-50 transition-colors"
                               onClick={() =>

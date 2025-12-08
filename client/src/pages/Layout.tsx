@@ -315,7 +315,7 @@ function EventToasts() {
       try {
         const obj = JSON.parse(ev.data);
         const cid = obj?.data?.hash || obj?.data?.cid;
-        const thumb = cid ? resolveIpfsCidToHttp(cid, ipfsGateway) : undefined;
+        const thumb = cid ? resolveIpfsCidToHttp(cid, ipfsGateway) || undefined : undefined;
         const line: EventLine = {
           id: String(obj?.id || crypto.randomUUID?.() || Date.now()),
           type: String(obj?.type || "event"),
