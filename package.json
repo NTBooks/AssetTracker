@@ -13,6 +13,8 @@
         "install:client": "npm --prefix client install"
     },
     "dependencies": {
+        "@heroicons/react": "^2.2.0",
+        "@types/react-router-dom": "^5.3.3",
         "@workos-inc/node": "^7.71.0",
         "axios": "^1.7.7",
         "bcryptjs": "^2.4.3",
@@ -25,16 +27,17 @@
         "multer": "^1.4.5-lts.1",
         "nanoid": "^5.0.7",
         "node-cron": "^4.2.1",
+        "react-router-dom": "^7.10.1",
         "sqlite": "^4.1.2",
         "sqlite3": "^5.1.4",
         "stripe": "^16.7.0"
     },
     "devDependencies": {
-        "typescript": "^5.1.6",
         "@types/react": "^19.2.7",
         "@types/react-dom": "^19.2.3",
         "concurrently": "^8.2.2",
         "cross-env": "^7.0.3",
-        "nodemon": "^3.1.7"
+        "nodemon": "^3.1.7",
+        "typescript": "^5.1.6"
     }
 }
